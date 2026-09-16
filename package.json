@@ -12,7 +12,8 @@
     "verify:verses": "node scripts/verify-verses.mjs",
     "import:taamim": "node scripts/import-taamim.mjs",
     "build:pages": "NEXT_PUBLIC_BASE_PATH=/medaker next build",
-    "preview:pages": "node scripts/serve-out.mjs"
+    "preview:pages": "node scripts/serve-out.mjs",
+    "build:scripture": "node scripts/build-scripture-index.mjs"
   },
   "dependencies": {
     "next": "16.3.5",

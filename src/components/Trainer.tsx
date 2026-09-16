@@ -1,15 +1,20 @@
 "use client";
 
 /**
- * Trainer — Practice / Exam orchestration over one verse.
+ * Trainer — Practice / Exam orchestration over ONE verse.
+ *
+ * The verse comes from scripture navigation (MedakerApp/useScripture); the parent
+ * remounts this component with `key={refToKey(ref)}` so all practice/exam state
+ * resets whenever the verse changes. Tokens are derived from `text` via tokenizeVerse,
+ * which runs the context rule engine — so navigation and validation are always in sync.
  *
  * Practice: the target word is highlighted; NONE-words are auto-completed;
- *           immediate green/red feedback; auto-advances to the next verse.
+ *           immediate green/red feedback; auto-advances to the next verse (onNext).
  * Exam:     no highlight, no feedback; last gesture per word is recorded;
  *           "סיים" produces an ExamReport.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { VERSES } from "@/data/verses";
+import { formatRefHe, type VerseRef } from "@/lib/scripture";
 import { tokenizeVerse, type WordToken } from "@/lib/taamim/tokenize";
 import { scoreExam, type ExamReport as Report, type ValidationResult } from "@/lib/taamim/validate";
 import { GESTURE_LABELS_HE, type RecognizedGesture } from "@/lib/taamim/config";
@@ -23,9 +28,16 @@ import { useUrlFlag } from "@/lib/useUrlFlag";
 
 type Mode = "practice" | "exam";
 
-export function Trainer() {
+export interface TrainerProps {
+  verseRef: VerseRef;
+  /** Fully pointed verse text. */
+  text: string;
+  onNext?: () => void;
+  onPrev?: () => void;
+}
+
+export function Trainer({ verseRef, text, onNext, onPrev }: TrainerProps) {
   const [mode, setMode] = useState<Mode>("practice");
-  const [verseIndex, setVerseIndex] = useState(0);
   const [hint, setHint] = useState(false);
   const [toast, setToast] = useState<{ text: string; tone: "correct" | "incorrect" | "info" } | null>(null);
   // `?tune=1` opens the on-device tuning panel (see lib/gestures/config-store.ts);
@@ -35,8 +47,9 @@ export function Trainer() {
   const tuning = tuningOverride ?? urlTune;
   const setTuning = setTuningOverride;
 
-  const verse = VERSES[verseIndex];
-  const tokens = useMemo(() => tokenizeVerse(verse.text, verse.id), [verse]);
+  const verseKey = `${verseRef.book}-${verseRef.chapter}-${verseRef.verse}`;
+  const tokens = useMemo(() => tokenizeVerse(text, verseKey), [text, verseKey]);
+  const refLabel = formatRefHe(verseRef);
 
   // Practice state
   const firstRequired = useCallback(
@@ -50,16 +63,14 @@ export function Trainer() {
   const [attempts, setAttempts] = useState<Map<string, RecognizedGesture>>(new Map());
   const [report, setReport] = useState<Report | null>(null);
 
-  const resetVerse = useCallback((idx: number) => {
-    const v = VERSES[idx];
-    const next = tokenizeVerse(v.text, v.id).findIndex((t) => t.requiredGesture !== "NONE");
-    setVerseIndex(idx);
-    setTargetIndex(next);
+  /** Restart the current verse (mode switch / new exam). */
+  const resetVerse = useCallback(() => {
+    setTargetIndex(firstRequired(0));
     setAttempts(new Map());
     setReport(null);
     setMistakes(0);
     setToast(null);
-  }, []);
+  }, [firstRequired]);
 
   useEffect(() => {
     if (!toast) return;
@@ -68,8 +79,9 @@ export function Trainer() {
   }, [toast]);
 
   const advanceVerse = useCallback(() => {
-    resetVerse((verseIndex + 1) % VERSES.length);
-  }, [resetVerse, verseIndex]);
+    if (onNext) onNext();
+    else resetVerse();
+  }, [onNext, resetVerse]);
 
   const onPracticeResult = (token: WordToken, gesture: RecognizedGesture, result: ValidationResult) => {
     setToast({ text: result.message, tone: result.correct ? "correct" : "incorrect" });
@@ -120,7 +132,7 @@ export function Trainer() {
               aria-selected={mode === m}
               onClick={() => {
                 setMode(m);
-                resetVerse(verseIndex);
+                resetVerse();
                 setHint(false);
               }}
               className={`rounded-full px-4 py-1.5 font-medium transition-colors ${
@@ -135,23 +147,25 @@ export function Trainer() {
         <div className="flex items-center gap-2 text-sm">
           <button
             type="button"
-            onClick={() => resetVerse((verseIndex - 1 + VERSES.length) % VERSES.length)}
-            className="rounded-lg border border-navy-700 px-3 py-1.5 text-parchment/80 hover:border-gold/60"
+            onClick={onPrev}
+            disabled={!onPrev}
+            className="min-h-11 rounded-lg border border-navy-700 px-3 py-1.5 text-parchment/80 hover:border-gold/60 disabled:opacity-40"
           >
             הקודם
           </button>
-          <span className="min-w-28 text-center text-parchment/80">{verse.ref}</span>
+          <span className="min-w-28 text-center text-parchment/80">{refLabel}</span>
           <button
             type="button"
-            onClick={advanceVerse}
-            className="rounded-lg border border-navy-700 px-3 py-1.5 text-parchment/80 hover:border-gold/60"
+            onClick={onNext}
+            disabled={!onNext}
+            className="min-h-11 rounded-lg border border-navy-700 px-3 py-1.5 text-parchment/80 hover:border-gold/60 disabled:opacity-40"
           >
             הבא
           </button>
         </div>
       </div>
 
-      <VerseScroll reference={verse.ref}>
+      <VerseScroll reference={refLabel}>
         {tokens.map((token) => (
           <TaamWord
             key={token.id}
@@ -229,7 +243,7 @@ export function Trainer() {
         </p>
       )}
 
-      {report && <ExamReport report={report} onRestart={() => resetVerse(verseIndex)} />}
+      {report && <ExamReport report={report} onRestart={resetVerse} />}
 
       {mode === "practice" && hint && target && (
         <p className="text-center text-xs text-parchment/50">

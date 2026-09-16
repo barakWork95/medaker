@@ -23,7 +23,7 @@ from training data; check `node_modules/next/dist/docs/` before using an API).
 | Lint/Types | `npm run lint` (eslint-config-next + React Compiler rules), `npm run typecheck` = `next typegen && tsc --noEmit` | `next typegen` regenerates the gitignored route types (`LayoutProps` etc.) so a clean checkout / CI typechecks before any build. |
 | Package mgr| npm | `npm run dev` → http://localhost:3000 |
 
-Scripts: `dev`, `build` (static export → `out/`), `build:pages` + `preview:pages` (§12), `lint`, `typecheck`, `test`, `verify:verses` (network; §9), `import:taamim` (§6).
+Scripts: `dev`, `build` (static export → `out/`), `build:pages` + `preview:pages` (§12), `lint`, `typecheck`, `test`, `verify:verses` (network; §9), `import:taamim` (§6), `build:scripture` (network; §13).
 
 ## 2. Directory map
 
@@ -32,8 +32,11 @@ src/
   app/
     globals.css          Tailwind import + ALL design tokens (@theme) + .gesture-target
     layout.tsx           <html lang="he" dir="rtl">, fonts, metadata, viewport (no zoom)
-    page.tsx             Header (logo + title) + <Trainer/>
+    page.tsx             renders <MedakerApp/>
   components/
+    MedakerApp.tsx       app shell: header (logo, title, ScriptureNav) + Trainer keyed by verse
+    ScriptureNav.tsx     header trigger + bottom sheet: quick search, Book → Chapter/Parasha → Verse
+    BottomSheet.tsx      mobile-first modal (slide-up, safe-area aware, Escape/backdrop close)
     TaamWord.tsx         ★ single word touch target with context-aware validation
     VerseScroll.tsx      parchment box, biblical typography
     Trainer.tsx          Practice / Exam orchestration for one verse (+ tuning toggle)
@@ -41,7 +44,7 @@ src/
     GestureLegend.tsx    icon legend for the 5 gestures
     TuningPanel.tsx      on-device threshold sliders + last-gesture readout (?tune=1)
   data/
-    verses.json          sample pointed verses (WLC) — source of truth
+    verses.json          sample pointed verses (WLC) — offline seed + verification fixtures
     verses.ts            typed export of verses.json
     verses.wlc.json      snapshot fetched from Sefaria by scripts/verify-verses.mjs
     verses.test.ts       offline test: verses.json ≡ snapshot
@@ -60,11 +63,18 @@ src/
     gestures/classify.ts     stroke → gesture (heuristics + $1 + direction checks)
     gestures/useGestureRecognizer.ts  pointer state machine hook
     useUrlFlag.ts        `?flag` reader safe for SSR (useSyncExternalStore)
+    scripture/index.generated.json  GENERATED Tanakh structure (39 books, 929 chapter lengths, 54 parashot)
+    scripture/index.ts   Book/Parasha/VerseRef types, next/prev/validity, formatRefHe, refToKey
+    scripture/hebrew-numerals.ts   toHebrewNumeral / fromHebrewNumeral (gematria, ט״ו/ט״ז)
+    scripture/parse-reference.ts   quick-search parser ("בראשית א א", "Genesis 1:1", "פרשת נח")
+    scripture/loader.ts  chapter text: memory → localStorage → Sefaria WLC → offline seed
+    scripture/useScripture.ts      navigation state hook (ref, status, text, goTo/next/prev)
     basePath.ts          withBasePath() for /public assets (next/image + metadata icons need it)
 data/
   taamim-mapping.xlsx    the user's "טעמי המקרא-Medaker.xlsx" — SOURCE OF TRUTH for the mapping
 .github/workflows/deploy.yml  CI (lint/typecheck/test) + static export + GitHub Pages deploy on push to main
 scripts/
+  build-scripture-index.mjs  Sefaria shape + index → scripture/index.generated.json
   serve-out.mjs          serve out/ under the basePath exactly like GitHub Pages (preview:pages)
   import-taamim.mjs      xlsx → taamim.generated.json (continuation rows, Hebrew rule text → ids)
   lib/xlsx-lite.mjs      dependency-free zip + sheet reader used by the importer
@@ -306,7 +316,7 @@ Distractor templates are load-bearing: without them $1 always returns *something
 `acceptAnyWord` lets exam mode take gestures on non-target words.
 
 ## 9. Data
-`src/data/verses.json` holds 5 sample verses (Gen 1:1-3, 1:7 for zarqa/segolta, 19:16 for
+Verse text at runtime comes from Sefaria (see §13); `src/data/verses.json` holds 5 sample verses (Gen 1:1-3, 1:7 for zarqa/segolta, 19:16 for
 shalshelet + paseq). **Verified 2026-09-16** character-for-character against two witnesses:
 Sefaria API v3 version "Tanach with Ta'amei Hamikra" (WLC) and tanach.us UXLC 2.5.
 - `npm run verify:verses` re-checks against Sefaria (add `--uxlc` for the second witness,
@@ -370,3 +380,55 @@ deployed URL. Add `?tune=1` for the gesture readout while testing.
   do not share them.
 - No server features may be added (route handlers, dynamic params without generateStaticParams,
   middleware) — see Next "static exports → unsupported features".
+
+## 13. Scripture structure & navigation
+
+**Structure (`src/lib/scripture/index.generated.json`, built by `npm run build:scripture`):**
+39 books in canonical order with `id` (Sefaria English title, e.g. `"I Samuel"`), `heTitle`,
+`section` (`torah | neviim | ketuvim`) and `chapters` (verse count per chapter); 54 parashot
+with `id` slug, `title`, `heTitle`, `book`, `start`/`end` `{chapter, verse}` and Sefaria's
+alias list. Sources: `/api/shape/<book>` and `/api/v2/index/<torah book>` → `alts.Parasha`.
+Regenerate only when Sefaria data changes; `index.test.ts` pins 39/929/54 and known ranges.
+
+**Reference model.** `VerseRef = { book, chapter, verse }` (1-based). Helpers in `index.ts`:
+`isValidRef`, `nextRef`/`prevRef` (cross chapter and book; `null` at the ends of the Tanakh),
+`parashaOf`, `parashotOf`, `parashaStartRef`, `formatRefHe` ("בראשית א, א", gematria via
+`hebrew-numerals.ts`), `refToKey`/`keyToRef` ("Genesis.1.1", "I_Samuel.3.2" — URL-safe).
+
+**Text loading (`loader.ts`).** `loadChapter(book, chapter)` → `string[]` (index 0 = verse 1),
+normalised like `verify-verses.mjs` (strip tags/entities/CGJ, maqaf spacing, NFD).
+Resolution: memory → `localStorage["medaker.chapter.<Book>.<n>"]` → Sefaria API v3
+(`/api/v3/texts/<Book>.<n>?version=hebrew|Tanach with Ta'amei Hamikra`, CORS open, WLC public
+domain) → on network failure, the bundled `verses.json` seed (sparse chapter, missing verses are
+`""` → "not available offline"; seeds are never cached so the next call retries). In-flight
+requests are de-duplicated; a chapter with the wrong verse count is rejected.
+
+**Navigation state (`useScripture.ts`).** One hook instance in `MedakerApp`:
+`{ ref, status: loading|ready|error, text, error, hasNext, hasPrev, goTo, next, prev, retry }`.
+- Initial ref: `?ref=<key>` → `localStorage["medaker.lastRef"]` → Genesis 1:1. Every navigation
+  writes both (`history.replaceState`, other params such as `?tune=1` are preserved).
+- `pending` holds the target of a user navigation so the header shows the destination while the
+  chapter loads; a request counter drops stale responses when the user navigates again quickly.
+- All `setState` calls happen in promise callbacks or event handlers (React Compiler lint rule
+  forbids synchronous setState in effects) — keep it that way.
+
+**Sync with the practice engine.** `MedakerApp` renders `<Trainer key={refToKey(ref)} verseRef text
+onNext onPrev/>`; the key remounts the trainer so practice/exam state resets per verse. Trainer
+derives tokens with `tokenizeVerse(text, key)`, which runs the context rule engine (§6b) — so the
+navigation target, the displayed words and the required gestures can never drift apart.
+Practice auto-advance calls `onNext` (crosses chapters/books); the last verse of II Chronicles
+simply restarts.
+
+**UI (`ScriptureNav.tsx`).** A compact header pill with the current reference opens a
+`BottomSheet` containing the quick search and three native `<select>`s (Book with section
+optgroups → Chapter/Parasha [Torah books get a "פרשות" optgroup, value `p:<id>`, and a "פרקים"
+group, value `c:<n>`] → Verse). Every change navigates immediately and the sheet stays open;
+a successful quick search closes it. Native selects were chosen deliberately: they open the OS
+picker on phones and are the most accessible large-target control available.
+
+**Quick search (`parse-reference.ts`).** Normalises (NFD, strip marks/quotes/geresh, separators
+`, : . -` → space, lower-case) then: explicit "פרשת …" → book by longest-name match (Sefaria
+titles + `BOOK_ALIASES`) followed by up to two numbers (digits or Hebrew numerals; missing verse or
+chapter → 1; פרק/פסוק words ignored) → bare parasha name/alias. Errors are Hebrew user messages.
+Documented ambiguities: "שמואל א ב" = I Samuel ch. 2 (book names win); a name that is both a book
+and a parasha (בראשית, שמות, במדבר, דברים, שופטים) resolves to the book — use "פרשת שופטים".
