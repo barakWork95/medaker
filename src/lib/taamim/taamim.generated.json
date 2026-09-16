@@ -1,0 +1,389 @@
+{
+  "source": "data/taamim-mapping.xlsx",
+  "generatedAt": "2026-09-16T08:47:53.095Z",
+  "marks": [
+    {
+      "codePoint": 1425,
+      "hex": "0591",
+      "nameHe": "אתנחתא",
+      "example": "ב֑",
+      "defaultGesture": "TRIPLE_TAP",
+      "rules": [
+        {
+          "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
+          "expectedGesture": "SWIPE_DOWN_TWICE",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+        }
+      ]
+    },
+    {
+      "codePoint": 1426,
+      "hex": "0592",
+      "nameHe": "סגולתא",
+      "example": "ב֒",
+      "defaultGesture": "LONG_PRESS",
+      "rules": [
+        {
+          "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
+          "expectedGesture": "SWIPE_DOWN_TWICE",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+        }
+      ]
+    },
+    {
+      "codePoint": 1427,
+      "hex": "0593",
+      "nameHe": "שלשלת",
+      "example": "ב֓",
+      "defaultGesture": "ZIGZAG",
+      "rules": []
+    },
+    {
+      "codePoint": 1428,
+      "hex": "0594",
+      "nameHe": "זקף קטון",
+      "example": "ב֔",
+      "defaultGesture": "LONG_PRESS",
+      "rules": [
+        {
+          "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
+          "expectedGesture": "SWIPE_DOWN_TWICE",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+        }
+      ]
+    },
+    {
+      "codePoint": 1429,
+      "hex": "0595",
+      "nameHe": "זקף גדול",
+      "example": "ב֕",
+      "defaultGesture": "LONG_PRESS",
+      "rules": [
+        {
+          "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
+          "expectedGesture": "SWIPE_DOWN_TWICE",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+        }
+      ]
+    },
+    {
+      "codePoint": 1430,
+      "hex": "0596",
+      "nameHe": "טיפחא",
+      "example": "ב֖",
+      "defaultGesture": "DIAGONAL",
+      "rules": []
+    },
+    {
+      "codePoint": 1431,
+      "hex": "0597",
+      "nameHe": "רביע",
+      "example": "ב֗",
+      "defaultGesture": "LONG_PRESS",
+      "rules": []
+    },
+    {
+      "codePoint": 1432,
+      "hex": "0598",
+      "nameHe": "צינורית",
+      "example": "ב֘",
+      "defaultGesture": "TILDE",
+      "rules": []
+    },
+    {
+      "codePoint": 1433,
+      "hex": "0599",
+      "nameHe": "פשטא",
+      "example": "ב֙",
+      "defaultGesture": "NONE",
+      "rules": []
+    },
+    {
+      "codePoint": 1434,
+      "hex": "059A",
+      "nameHe": "יתיב",
+      "example": "ב֚",
+      "defaultGesture": "DIAGONAL",
+      "rules": []
+    },
+    {
+      "codePoint": 1435,
+      "hex": "059B",
+      "nameHe": "תביר",
+      "example": "ב֛",
+      "defaultGesture": "LONG_PRESS",
+      "rules": [
+        {
+          "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
+          "expectedGesture": "SWIPE_DOWN_TWICE",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+        }
+      ]
+    },
+    {
+      "codePoint": 1436,
+      "hex": "059C",
+      "nameHe": "גרש",
+      "example": "ב֜",
+      "defaultGesture": "LONG_PRESS",
+      "rules": [
+        {
+          "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
+          "expectedGesture": "SWIPE_DOWN_TWICE",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+        },
+        {
+          "id": "NEXT_MAJOR_IS_REVIA_WITHOUT_PASEK",
+          "expectedGesture": "DIAGONAL",
+          "sourceText": "במקרה שהטעם מסוג triple-tap / long-press הבא אחריו הוא רביע (597) ואין ביניהם פסק (05C0)"
+        }
+      ]
+    },
+    {
+      "codePoint": 1437,
+      "hex": "059D",
+      "nameHe": "גרש מוקדם",
+      "example": "ב֝",
+      "defaultGesture": "LONG_PRESS",
+      "rules": [
+        {
+          "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
+          "expectedGesture": "SWIPE_DOWN_TWICE",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+        },
+        {
+          "id": "NEXT_MAJOR_IS_REVIA_WITHOUT_PASEK",
+          "expectedGesture": "DIAGONAL",
+          "sourceText": "במקרה שהטעם מסוג triple-tap / long-press הבא אחריו הוא רביע (597) ואין ביניהם פסק (05C0)"
+        }
+      ]
+    },
+    {
+      "codePoint": 1438,
+      "hex": "059E",
+      "nameHe": "גרשיים",
+      "example": "ב֞",
+      "defaultGesture": "LONG_PRESS",
+      "rules": [
+        {
+          "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
+          "expectedGesture": "SWIPE_DOWN_TWICE",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+        },
+        {
+          "id": "NEXT_MAJOR_IS_REVIA_WITHOUT_PASEK",
+          "expectedGesture": "DIAGONAL",
+          "sourceText": "במקרה שהטעם מסוג triple-tap / long-press הבא אחריו הוא רביע (597) ואין ביניהם פסק (05C0)"
+        }
+      ]
+    },
+    {
+      "codePoint": 1439,
+      "hex": "059F",
+      "nameHe": "קרני פרה",
+      "example": "ב֟",
+      "defaultGesture": "LONG_PRESS",
+      "rules": [
+        {
+          "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
+          "expectedGesture": "SWIPE_DOWN_TWICE",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+        },
+        {
+          "id": "NEXT_MAJOR_IS_REVIA_WITHOUT_PASEK",
+          "expectedGesture": "DIAGONAL",
+          "sourceText": "במקרה שהטעם מסוג triple-tap / long-press הבא אחריו הוא רביע (597) ואין ביניהם פסק (05C0)"
+        }
+      ]
+    },
+    {
+      "codePoint": 1440,
+      "hex": "05A0",
+      "nameHe": "תלישא גדולה",
+      "example": "ב֠",
+      "defaultGesture": "LONG_PRESS",
+      "rules": [
+        {
+          "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
+          "expectedGesture": "SWIPE_DOWN_TWICE",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+        },
+        {
+          "id": "NEXT_MAJOR_IS_REVIA_WITHOUT_PASEK",
+          "expectedGesture": "DIAGONAL",
+          "sourceText": "במקרה שהטעם מסוג triple-tap / long-press הבא אחריו הוא רביע (597) ואין ביניהם פסק (05C0)"
+        }
+      ]
+    },
+    {
+      "codePoint": 1441,
+      "hex": "05A1",
+      "nameHe": "פזר",
+      "example": "ב֡",
+      "defaultGesture": "LONG_PRESS",
+      "rules": [
+        {
+          "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
+          "expectedGesture": "SWIPE_DOWN_TWICE",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+        }
+      ]
+    },
+    {
+      "codePoint": 1442,
+      "hex": "05A2",
+      "nameHe": "אתנח הפוך",
+      "example": "ב֢",
+      "defaultGesture": "LONG_PRESS",
+      "rules": [
+        {
+          "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
+          "expectedGesture": "SWIPE_DOWN_TWICE",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+        }
+      ]
+    },
+    {
+      "codePoint": 1443,
+      "hex": "05A3",
+      "nameHe": "מונח",
+      "example": "ב֣",
+      "defaultGesture": "NONE",
+      "rules": []
+    },
+    {
+      "codePoint": 1444,
+      "hex": "05A4",
+      "nameHe": "מהפך",
+      "example": "ב֤",
+      "defaultGesture": "NONE",
+      "rules": []
+    },
+    {
+      "codePoint": 1445,
+      "hex": "05A5",
+      "nameHe": "מרכא",
+      "example": "ב֥",
+      "defaultGesture": "NONE",
+      "rules": []
+    },
+    {
+      "codePoint": 1446,
+      "hex": "05A6",
+      "nameHe": "מרכא כפולה",
+      "example": "ב֦",
+      "defaultGesture": "NONE",
+      "rules": []
+    },
+    {
+      "codePoint": 1447,
+      "hex": "05A7",
+      "nameHe": "דרגא",
+      "example": "ב֧",
+      "defaultGesture": "NONE",
+      "rules": []
+    },
+    {
+      "codePoint": 1448,
+      "hex": "05A8",
+      "nameHe": "קדמא",
+      "example": "ב֨",
+      "defaultGesture": "NONE",
+      "rules": []
+    },
+    {
+      "codePoint": 1449,
+      "hex": "05A9",
+      "nameHe": "תלישא קטנה",
+      "example": "ב֩",
+      "defaultGesture": "NONE",
+      "rules": []
+    },
+    {
+      "codePoint": 1450,
+      "hex": "05AA",
+      "nameHe": "ירח בן יומו",
+      "example": "ב֪",
+      "defaultGesture": "LONG_PRESS",
+      "rules": [
+        {
+          "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
+          "expectedGesture": "SWIPE_DOWN_TWICE",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+        }
+      ]
+    },
+    {
+      "codePoint": 1451,
+      "hex": "05AB",
+      "nameHe": "עולה",
+      "example": "ב֫",
+      "defaultGesture": "NONE",
+      "rules": []
+    },
+    {
+      "codePoint": 1452,
+      "hex": "05AC",
+      "nameHe": "עילוי",
+      "example": "ב֬",
+      "defaultGesture": "NONE",
+      "rules": []
+    },
+    {
+      "codePoint": 1453,
+      "hex": "05AD",
+      "nameHe": "דחי",
+      "example": "ב֭",
+      "defaultGesture": "DIAGONAL",
+      "rules": []
+    },
+    {
+      "codePoint": 1454,
+      "hex": "05AE",
+      "nameHe": "זרקא",
+      "example": "ב֮",
+      "defaultGesture": "TILDE",
+      "rules": []
+    },
+    {
+      "codePoint": 1455,
+      "hex": "05AF",
+      "nameHe": "סימן עגול",
+      "example": "ב֯",
+      "defaultGesture": "NONE",
+      "rules": []
+    },
+    {
+      "codePoint": 1469,
+      "hex": "05BD",
+      "nameHe": "מתג",
+      "example": "בֽ",
+      "defaultGesture": "NONE",
+      "rules": []
+    },
+    {
+      "codePoint": 1472,
+      "hex": "05C0",
+      "nameHe": "פסק",
+      "example": "ב׀",
+      "defaultGesture": "DIAGONAL",
+      "rules": []
+    },
+    {
+      "codePoint": 1470,
+      "hex": "05BE",
+      "nameHe": "מקף",
+      "example": "ב־ב",
+      "defaultGesture": "NONE",
+      "rules": []
+    },
+    {
+      "codePoint": 1475,
+      "hex": "05C3",
+      "nameHe": "סוף פסוק",
+      "example": "ב׃",
+      "defaultGesture": "SWIPE_DOWN",
+      "rules": []
+    }
+  ]
+}

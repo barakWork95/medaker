@@ -1,26 +1,79 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * Medaker design tokens — "Royal Navy & Gold".
+ * Tailwind v4 is CSS-first: every --color-* / --font-* here becomes a utility
+ * (bg-navy, text-gold, font-stam, ...). Keep this file the single source of truth
+ * for colours and fonts; CLAUDE.md documents the semantics.
+ */
+@theme {
+  /* Surfaces */
+  --color-navy: #0f172a;        /* app background            */
+  --color-navy-800: #1e293b;    /* raised panels / header    */
+  --color-navy-700: #334155;    /* borders on navy           */
+  --color-parchment: #fdfbf7;   /* scroll display box        */
+  --color-parchment-200: #f3ecd9; /* parchment shading       */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  /* Accent */
+  --color-gold: #d4af37;        /* primary accent & borders  */
+  --color-gold-300: #e9d283;    /* hover / highlight         */
+  --color-gold-700: #a8891f;    /* pressed / text on cream   */
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  /* Text */
+  --color-ink: #1c1917;         /* Torah text ink            */
+
+  /* Feedback */
+  --color-correct: #10b981;     /* emerald                   */
+  --color-incorrect: #e11d48;   /* ruby                      */
+
+  /* Typography (variables are injected by next/font in layout.tsx) */
+  --font-sans: var(--font-heebo), "Heebo", "Assistant", system-ui, sans-serif;
+  /* ONE biblical font for both the bare-letter and the pointed layer (see CLAUDE.md §3). */
+  --font-stam: var(--font-stam), "Taamey Ashkenaz", "Taamey Frank CLM", serif;
+
+  /* Motion */
+  --animate-flash-correct: flash-correct 700ms ease-out;
+  --animate-flash-incorrect: flash-incorrect 500ms ease-in-out;
+
+  @keyframes flash-correct {
+    0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-correct) 60%, transparent); }
+    100% { box-shadow: 0 0 0 14px transparent; }
+  }
+  @keyframes flash-incorrect {
+    0%, 100% { transform: translateX(0); }
+    25%      { transform: translateX(-4px); }
+    75%      { transform: translateX(4px); }
   }
 }
 
+html {
+  color-scheme: dark;
+  background: var(--color-navy);
+  /* No pull-to-refresh / rubber-banding: a swipe-down gesture must never reload the page. */
+  overscroll-behavior: none;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-navy);
+  color: var(--color-parchment);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+  /* Safe areas when installed to the iOS home screen (viewport-fit=cover). */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/*
+ * Gesture targets. `touch-action: none` is a strict superset of `manipulation`:
+ * it disables double-tap zoom, pinch zoom AND scrolling on the element, which is
+ * required so pointermove keeps firing while the user draws a stroke on a word.
+ * user-select / touch-callout stop the long-press text-selection magnifier.
+ */
+.gesture-target {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
 }
