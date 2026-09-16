@@ -20,7 +20,7 @@ from training data; check `node_modules/next/dist/docs/` before using an API).
 | Fonts      | `next/font` — Heebo (UI, Google) + local **Taamey Ashkenaz** (all biblical text, both layers) | See §3. |
 | Gestures   | Native Pointer Events + in-house **$1 Unistroke Recognizer** port (`src/lib/gestures/dollar-one.ts`) | No third-party gesture lib. |
 | Tests      | Vitest (`npm test`), node environment, pure-function tests only | Components are verified in the browser. |
-| Lint/Types | `npm run lint` (eslint-config-next + React Compiler rules), `npm run typecheck` | Both must pass. |
+| Lint/Types | `npm run lint` (eslint-config-next + React Compiler rules), `npm run typecheck` = `next typegen && tsc --noEmit` | `next typegen` regenerates the gitignored route types (`LayoutProps` etc.) so a clean checkout / CI typechecks before any build. |
 | Package mgr| npm | `npm run dev` → http://localhost:3000 |
 
 Scripts: `dev`, `build` (static export → `out/`), `build:pages` + `preview:pages` (§12), `lint`, `typecheck`, `test`, `verify:verses` (network; §9), `import:taamim` (§6).

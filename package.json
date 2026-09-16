@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "verify:verses": "node scripts/verify-verses.mjs",
     "import:taamim": "node scripts/import-taamim.mjs",
     "build:pages": "NEXT_PUBLIC_BASE_PATH=/medaker next build",
