@@ -28,13 +28,13 @@ const taamey = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "מדקר — Medaker",
+  title: "מד׳כר — Medaker",
   description: "אימון טעמי המקרא במחוות מגע: קרא מהמגילה, ודקר את הטעם הנכון.",
   applicationName: "Medaker",
   icons: { icon: withBasePath("/logo-gold.svg") },
   // Added to the home screen on iOS, the app runs without Safari's toolbars, which keeps
   // edge swipes from triggering browser navigation while practising.
-  appleWebApp: { capable: true, title: "מדקר", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: "מד׳כר", statusBarStyle: "black-translucent" },
 };
 
 /**

@@ -1,5 +1,5 @@
 import { hasHebrewLetters, stripFormatChars, toStamDisplay } from "@/lib/hebrew/unicode";
-import { TAAMIM_BY_CODEPOINT, type GestureType, type TaamDefinition } from "./config";
+import { COMPOUND_TAAMIM, TAAMIM_BY_CODEPOINT, type GestureType, type TaamDefinition } from "./config";
 import { resolveGesture, type ContextRuleId } from "./rules";
 
 /** One touch target: a word (or maqaf-joined group) with its data-layer marks. */
@@ -26,17 +26,38 @@ export interface WordToken {
 /** Standalone punctuation tokens that attach to the previous word. */
 const ATTACH_TO_PREVIOUS_RE = /^[׀׃־׆]+$/;
 
-/** Extract mapped marks from a token, in order, deduplicated by code point. */
+/** True if `counts` holds every code point of `sequence`, with multiplicity. */
+function containsSequence(counts: Map<number, number>, sequence: readonly number[]): boolean {
+  const need = new Map<number, number>();
+  for (const cp of sequence) need.set(cp, (need.get(cp) ?? 0) + 1);
+  for (const [cp, n] of need) if ((counts.get(cp) ?? 0) < n) return false;
+  return true;
+}
+
+/**
+ * Extract mapped marks from a token, in text order, deduplicated by code point.
+ * Compound marks (config COMPOUND_TAAMIM, e.g. תרין פשטין = U+05A8 + U+0599, or U+0599 twice
+ * in WLC) replace their component marks: the compound takes the first component's position.
+ */
 export function marksOf(pointed: string): TaamDefinition[] {
-  const out: TaamDefinition[] = [];
-  const seen = new Set<number>();
+  const singles: TaamDefinition[] = [];
+  const counts = new Map<number, number>();
   for (const ch of pointed.normalize("NFD")) {
     const cp = ch.codePointAt(0)!;
     const def = TAAMIM_BY_CODEPOINT.get(cp);
-    if (def && !seen.has(cp)) {
-      seen.add(cp);
-      out.push(def);
-    }
+    if (!def) continue;
+    if (!counts.has(cp)) singles.push(def);
+    counts.set(cp, (counts.get(cp) ?? 0) + 1);
+  }
+
+  let out = singles;
+  for (const compound of COMPOUND_TAAMIM) {
+    const sequence = [compound.codePoints, ...compound.alternateSequences].find((seq) => containsSequence(counts, seq));
+    if (!sequence) continue;
+    const parts = new Set(sequence);
+    const at = out.findIndex((m) => parts.has(m.codePoint));
+    out = out.filter((m) => !parts.has(m.codePoint));
+    out.splice(at, 0, compound);
   }
   return out;
 }

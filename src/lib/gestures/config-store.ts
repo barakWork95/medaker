@@ -35,7 +35,6 @@ export const GESTURE_CONFIG_META: Record<
   diagonalMinDeg: { label: "אלכסון — זווית מינימלית", min: 5, max: 45, step: 1, unit: "°", hint: "זווית הקו מתחת לאופק (0 = אופקי)" },
   diagonalMaxDeg: { label: "אלכסון — זווית מרבית", min: 45, max: 85, step: 1, unit: "°", hint: "90 = אנכי" },
   swipeDownToleranceDeg: { label: "החלקה למטה — סטייה מאנכי", min: 5, max: 40, step: 1, unit: "°", hint: "כמה מותר לסטות מקו אנכי ישר כלפי מטה" },
-  swipeTwiceGapMs: { label: "מרווח בין שתי החלקות למטה", min: 200, max: 1200, step: 50, unit: "ms", hint: "זמן מרבי מסיום החלקה למטה עד תחילת ההחלקה השנייה; החלקה בודדת מדווחת רק אחרי שהחלון נסגר" },
   dollarOneMinScore: { label: "סף זיהוי $1", min: 0.4, max: 0.95, step: 0.01, unit: "", hint: "ציון התאמה מינימלי לתבנית (נמוך = סלחני)" },
   dollarOneAngleRangeDeg: { label: "טווח סיבוב $1", min: 0, max: 60, step: 1, unit: "°", hint: "כמה מותר לסובב את התנועה כדי להתאים לתבנית" },
 };

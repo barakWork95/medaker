@@ -22,9 +22,15 @@ export type ContextRuleId = "LAST_MAJOR_BEFORE_SOF_PASUK" | "NEXT_MAJOR_IS_REVIA
 
 const REVIA = 0x0597;
 const PASEQ = 0x05c0;
+const SOF_PASUQ = 0x05c3;
 
-/** "Major" = a mark whose DEFAULT gesture is triple-tap or long-press (sheet wording). */
+/**
+ * "Major" = an ACCENT whose DEFAULT gesture is triple-tap or long-press (sheet wording:
+ * "הטעם … מסוג (triple-tap / long-press)"). Sof pasuq (׃) is the verse terminator the rules
+ * measure up to, not one of the accents — it is never major, whatever its own gesture is.
+ */
 export function isMajorMark(mark: TaamDefinition): boolean {
+  if (mark.codePoint === SOF_PASUQ) return false;
   return mark.defaultGesture === "TRIPLE_TAP" || mark.defaultGesture === "LONG_PRESS";
 }
 
@@ -65,15 +71,14 @@ export const CONTEXT_RULES: Record<ContextRuleId, ContextRuleSpec> = {
   LAST_MAJOR_BEFORE_SOF_PASUK: {
     labelHe: "הטעם המפסיק האחרון לפני סוף פסוק",
     describe:
-      "No later mark in the verse is major (triple-tap / long-press by default) and the verse ends with sof pasuq (swipe-down).",
+      "Scanning forward, sof pasuq (U+05C3) is reached before any other major accent (triple-tap / long-press by default).",
     evaluate({ sequence, position }) {
-      let sawSofPasuq = false;
       for (let p = position + 1; p < sequence.length; p++) {
         const m = sequence[p].mark;
+        if (m.codePoint === SOF_PASUQ) return true;
         if (isMajorMark(m)) return false;
-        if (m.defaultGesture === "SWIPE_DOWN") sawSofPasuq = true;
       }
-      return sawSofPasuq;
+      return false; // no sof pasuq in this text → not a complete verse, rule does not apply
     },
   },
   NEXT_MAJOR_IS_REVIA_WITHOUT_PASEK: {

@@ -17,8 +17,7 @@ export type GestureType =
   | "TRIPLE_TAP" //        הקשה משולשת
   | "ZIGZAG" //            קשקוש כלפי מעלה
   | "TILDE" //             גל ~ / אינפיניטי ∞ מימין לשמאל
-  | "SWIPE_DOWN" //        החלקה למטה (סוף פסוק)
-  | "SWIPE_DOWN_TWICE"; // החלקה למטה פעמיים ברצף, אצבע אחת (הטעם המפסיק האחרון לפני סוף פסוק)
+  | "SWIPE_DOWN"; //       החלקה למטה (הטעם המפסיק האחרון לפני סוף פסוק — via context rule)
 
 export const GESTURE_TYPES: readonly GestureType[] = [
   "NONE",
@@ -28,7 +27,6 @@ export const GESTURE_TYPES: readonly GestureType[] = [
   "ZIGZAG",
   "TILDE",
   "SWIPE_DOWN",
-  "SWIPE_DOWN_TWICE",
 ];
 
 /** What the recognizer can emit. TAP (1–2 taps) and UNKNOWN are never "required". */
@@ -42,7 +40,6 @@ export const GESTURE_LABELS_HE: Record<GestureType, string> = {
   ZIGZAG: "קשקוש כלפי מעלה",
   TILDE: "גל ~ / ∞ מימין לשמאל",
   SWIPE_DOWN: "החלקה למטה",
-  SWIPE_DOWN_TWICE: "החלקה למטה, ושוב החלקה למטה",
 };
 
 export const GESTURE_ICONS: Record<GestureType, string> = {
@@ -53,7 +50,6 @@ export const GESTURE_ICONS: Record<GestureType, string> = {
   ZIGZAG: "⩘",
   TILDE: "∿",
   SWIPE_DOWN: "↓",
-  SWIPE_DOWN_TWICE: "↓↓",
 };
 
 /** A conditional rule attached to a mark (sheet columns contextRule / expectedGesture). */
@@ -67,8 +63,17 @@ export interface ContextRule {
 export interface TaamDefinition {
   /** Stable id (transliterated), used as key in reports. */
   id: string;
+  /** First (or only) code point. For compound marks prefer `codePoints`. */
   codePoint: number;
-  /** The combining character itself, e.g. "֖". */
+  /**
+   * Every code point that must be present on the word. Length 1 for ordinary marks;
+   * longer for compound marks such as תרין פשטין (U+05A8 + U+0599).
+   */
+  codePoints: readonly number[];
+  /** Other encodings of the same compound, e.g. WLC writes תרין פשטין as U+0599 twice. */
+  alternateSequences: readonly (readonly number[])[];
+  compound: boolean;
+  /** The combining character(s) themselves. */
   char: string;
   nameHe: string;
   nameEn: string;
@@ -84,8 +89,11 @@ export interface TaamDefinition {
   rank: number;
 }
 
-/** Data the sheet does not carry, keyed by 4-digit hex code point. */
-const TAAM_META: Record<string, { id: string; nameEn: string; rank: number }> = {
+/**
+ * Data the sheet does not carry, keyed by the sheet's hex ("0591", compound "05A8+0599").
+ * `alternates` lists other encodings of a compound mark found in real texts.
+ */
+const TAAM_META: Record<string, { id: string; nameEn: string; rank: number; alternates?: number[][] }> = {
   "0591": { id: "etnahta", nameEn: "Etnahta", rank: 0 },
   "0592": { id: "segol", nameEn: "Segolta", rank: 1 },
   "0593": { id: "shalshelet", nameEn: "Shalshelet", rank: 1 },
@@ -94,7 +102,9 @@ const TAAM_META: Record<string, { id: string; nameEn: string; rank: number }> = 
   "0596": { id: "tipeha", nameEn: "Tipeha", rank: 1 },
   "0597": { id: "revia", nameEn: "Revia", rank: 2 },
   "0598": { id: "tsinnorit", nameEn: "Tsinnorit (U+0598 ZARQA)", rank: 3 },
-  "0599": { id: "pashta", nameEn: "Pashta", rank: 9 },
+  "0599": { id: "pashta", nameEn: "Pashta", rank: 2 },
+  // Sheet encoding is qadma-shaped first stroke + pashta; WLC/Sefaria-WLC double the pashta instead.
+  "05A8+0599": { id: "tarin-pashtin", nameEn: "Tarin Pashtin (double pashta)", rank: 2, alternates: [[0x0599, 0x0599]] },
   "059A": { id: "yetiv", nameEn: "Yetiv", rank: 2 },
   "059B": { id: "tevir", nameEn: "Tevir", rank: 2 },
   "059C": { id: "geresh", nameEn: "Geresh", rank: 3 },
@@ -109,7 +119,9 @@ const TAAM_META: Record<string, { id: string; nameEn: string; rank: number }> = 
   "05A5": { id: "merkha", nameEn: "Merkha", rank: 9 },
   "05A6": { id: "merkha-kefula", nameEn: "Merkha Kefula", rank: 9 },
   "05A7": { id: "darga", nameEn: "Darga", rank: 9 },
-  "05A8": { id: "qadma", nameEn: "Qadma", rank: 9 },
+  // conjunctive, but it carries a gesture since the 2026-09-18 sheet: rank below every
+  // disjunctive (and paseq) so e.g. qadma + geresh on one word is governed by the geresh
+  "05A8": { id: "qadma", nameEn: "Qadma", rank: 5 },
   "05A9": { id: "telisha-qetana", nameEn: "Telisha Qetana", rank: 9 },
   "05AA": { id: "yerah-ben-yomo", nameEn: "Yerah Ben Yomo", rank: 3 },
   "05AB": { id: "ole", nameEn: "Ole", rank: 9 },
@@ -132,10 +144,14 @@ function asGesture(value: string, where: string): GestureType {
 export const TAAMIM: readonly TaamDefinition[] = generated.marks.map((m) => {
   const meta = TAAM_META[m.hex];
   if (!meta) throw new Error(`taamim.generated.json: no TAAM_META for U+${m.hex} (${m.nameHe}) — add it in config.ts`);
+  const codePoints: number[] = m.codePoints ?? [m.codePoint];
   return {
     id: meta.id,
-    codePoint: m.codePoint,
-    char: String.fromCodePoint(m.codePoint),
+    codePoint: codePoints[0],
+    codePoints,
+    alternateSequences: meta.alternates ?? [],
+    compound: codePoints.length > 1,
+    char: String.fromCodePoint(...codePoints),
     nameHe: m.nameHe,
     nameEn: meta.nameEn,
     defaultGesture: asGesture(m.defaultGesture, m.hex),
@@ -148,10 +164,13 @@ export const TAAMIM: readonly TaamDefinition[] = generated.marks.map((m) => {
   };
 });
 
-/** code point → definition. */
+/** code point → definition (single-code-point marks only). */
 export const TAAMIM_BY_CODEPOINT: ReadonlyMap<number, TaamDefinition> = new Map(
-  TAAMIM.map((t) => [t.codePoint, t]),
+  TAAMIM.filter((t) => !t.compound).map((t) => [t.codePoint, t]),
 );
+
+/** Compound marks (several code points on one word form one mark), e.g. תרין פשטין. */
+export const COMPOUND_TAAMIM: readonly TaamDefinition[] = TAAMIM.filter((t) => t.compound);
 
 export const TAAMIM_BY_ID: ReadonlyMap<string, TaamDefinition> = new Map(
   TAAMIM.map((t) => [t.id, t]),
@@ -159,7 +178,7 @@ export const TAAMIM_BY_ID: ReadonlyMap<string, TaamDefinition> = new Map(
 
 /** Regex matching every code point that carries a mapping (marks + paseq/maqaf/sof-pasuq). */
 export const MAPPED_CODEPOINTS_RE = new RegExp(
-  "[" + TAAMIM.map((t) => "\\u" + t.codePoint.toString(16).padStart(4, "0")).join("") + "]",
+  "[" + TAAMIM.filter((t) => !t.compound).map((t) => "\\u" + t.codePoint.toString(16).padStart(4, "0")).join("") + "]",
   "g",
 );
 
@@ -184,8 +203,6 @@ export const GESTURE_CONFIG = {
   diagonalMaxDeg: 70,
   /** Swipe-down: accepted deviation from straight down (±deg). */
   swipeDownToleranceDeg: 20,
-  /** Max gap between the end of one swipe-down and the start of the next for SWIPE_DOWN_TWICE (ms). */
-  swipeTwiceGapMs: 600,
   /** $1 recognizer acceptance score (0..1). */
   dollarOneMinScore: 0.7,
   /** $1 bounded rotation search (±deg) — keeps "\" distinct from "/". */

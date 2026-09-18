@@ -1,9 +1,12 @@
 {
   "source": "data/taamim-mapping.xlsx",
-  "generatedAt": "2026-09-16T08:47:53.095Z",
+  "generatedAt": "2026-09-18T07:40:50.648Z",
   "marks": [
     {
       "codePoint": 1425,
+      "codePoints": [
+        1425
+      ],
       "hex": "0591",
       "nameHe": "אתנחתא",
       "example": "ב֑",
@@ -11,13 +14,16 @@
       "rules": [
         {
           "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
-          "expectedGesture": "SWIPE_DOWN_TWICE",
-          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+          "expectedGesture": "SWIPE_DOWN",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (׃)"
         }
       ]
     },
     {
       "codePoint": 1426,
+      "codePoints": [
+        1426
+      ],
       "hex": "0592",
       "nameHe": "סגולתא",
       "example": "ב֒",
@@ -25,13 +31,16 @@
       "rules": [
         {
           "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
-          "expectedGesture": "SWIPE_DOWN_TWICE",
-          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+          "expectedGesture": "SWIPE_DOWN",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (׃)"
         }
       ]
     },
     {
       "codePoint": 1427,
+      "codePoints": [
+        1427
+      ],
       "hex": "0593",
       "nameHe": "שלשלת",
       "example": "ב֓",
@@ -40,6 +49,9 @@
     },
     {
       "codePoint": 1428,
+      "codePoints": [
+        1428
+      ],
       "hex": "0594",
       "nameHe": "זקף קטון",
       "example": "ב֔",
@@ -47,13 +59,16 @@
       "rules": [
         {
           "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
-          "expectedGesture": "SWIPE_DOWN_TWICE",
-          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+          "expectedGesture": "SWIPE_DOWN",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (׃)"
         }
       ]
     },
     {
       "codePoint": 1429,
+      "codePoints": [
+        1429
+      ],
       "hex": "0595",
       "nameHe": "זקף גדול",
       "example": "ב֕",
@@ -61,13 +76,16 @@
       "rules": [
         {
           "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
-          "expectedGesture": "SWIPE_DOWN_TWICE",
-          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+          "expectedGesture": "SWIPE_DOWN",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (׃)"
         }
       ]
     },
     {
       "codePoint": 1430,
+      "codePoints": [
+        1430
+      ],
       "hex": "0596",
       "nameHe": "טיפחא",
       "example": "ב֖",
@@ -76,6 +94,9 @@
     },
     {
       "codePoint": 1431,
+      "codePoints": [
+        1431
+      ],
       "hex": "0597",
       "nameHe": "רביע",
       "example": "ב֗",
@@ -84,6 +105,9 @@
     },
     {
       "codePoint": 1432,
+      "codePoints": [
+        1432
+      ],
       "hex": "0598",
       "nameHe": "צינורית",
       "example": "ב֘",
@@ -92,14 +116,32 @@
     },
     {
       "codePoint": 1433,
+      "codePoints": [
+        1433
+      ],
       "hex": "0599",
       "nameHe": "פשטא",
       "example": "ב֙",
-      "defaultGesture": "NONE",
+      "defaultGesture": "DIAGONAL",
+      "rules": []
+    },
+    {
+      "codePoint": 1448,
+      "codePoints": [
+        1448,
+        1433
+      ],
+      "hex": "05A8+0599",
+      "nameHe": "תרין פשטין",
+      "example": "ב֨֙",
+      "defaultGesture": "DIAGONAL",
       "rules": []
     },
     {
       "codePoint": 1434,
+      "codePoints": [
+        1434
+      ],
       "hex": "059A",
       "nameHe": "יתיב",
       "example": "ב֚",
@@ -108,6 +150,9 @@
     },
     {
       "codePoint": 1435,
+      "codePoints": [
+        1435
+      ],
       "hex": "059B",
       "nameHe": "תביר",
       "example": "ב֛",
@@ -115,13 +160,16 @@
       "rules": [
         {
           "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
-          "expectedGesture": "SWIPE_DOWN_TWICE",
-          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+          "expectedGesture": "SWIPE_DOWN",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (׃)"
         }
       ]
     },
     {
       "codePoint": 1436,
+      "codePoints": [
+        1436
+      ],
       "hex": "059C",
       "nameHe": "גרש",
       "example": "ב֜",
@@ -129,8 +177,8 @@
       "rules": [
         {
           "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
-          "expectedGesture": "SWIPE_DOWN_TWICE",
-          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+          "expectedGesture": "SWIPE_DOWN",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (׃)"
         },
         {
           "id": "NEXT_MAJOR_IS_REVIA_WITHOUT_PASEK",
@@ -141,6 +189,9 @@
     },
     {
       "codePoint": 1437,
+      "codePoints": [
+        1437
+      ],
       "hex": "059D",
       "nameHe": "גרש מוקדם",
       "example": "ב֝",
@@ -148,8 +199,8 @@
       "rules": [
         {
           "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
-          "expectedGesture": "SWIPE_DOWN_TWICE",
-          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+          "expectedGesture": "SWIPE_DOWN",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (׃)"
         },
         {
           "id": "NEXT_MAJOR_IS_REVIA_WITHOUT_PASEK",
@@ -160,6 +211,9 @@
     },
     {
       "codePoint": 1438,
+      "codePoints": [
+        1438
+      ],
       "hex": "059E",
       "nameHe": "גרשיים",
       "example": "ב֞",
@@ -167,8 +221,8 @@
       "rules": [
         {
           "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
-          "expectedGesture": "SWIPE_DOWN_TWICE",
-          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+          "expectedGesture": "SWIPE_DOWN",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (׃)"
         },
         {
           "id": "NEXT_MAJOR_IS_REVIA_WITHOUT_PASEK",
@@ -179,6 +233,9 @@
     },
     {
       "codePoint": 1439,
+      "codePoints": [
+        1439
+      ],
       "hex": "059F",
       "nameHe": "קרני פרה",
       "example": "ב֟",
@@ -186,8 +243,8 @@
       "rules": [
         {
           "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
-          "expectedGesture": "SWIPE_DOWN_TWICE",
-          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+          "expectedGesture": "SWIPE_DOWN",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (׃)"
         },
         {
           "id": "NEXT_MAJOR_IS_REVIA_WITHOUT_PASEK",
@@ -198,6 +255,9 @@
     },
     {
       "codePoint": 1440,
+      "codePoints": [
+        1440
+      ],
       "hex": "05A0",
       "nameHe": "תלישא גדולה",
       "example": "ב֠",
@@ -205,8 +265,8 @@
       "rules": [
         {
           "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
-          "expectedGesture": "SWIPE_DOWN_TWICE",
-          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+          "expectedGesture": "SWIPE_DOWN",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (׃)"
         },
         {
           "id": "NEXT_MAJOR_IS_REVIA_WITHOUT_PASEK",
@@ -217,6 +277,9 @@
     },
     {
       "codePoint": 1441,
+      "codePoints": [
+        1441
+      ],
       "hex": "05A1",
       "nameHe": "פזר",
       "example": "ב֡",
@@ -224,13 +287,16 @@
       "rules": [
         {
           "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
-          "expectedGesture": "SWIPE_DOWN_TWICE",
-          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+          "expectedGesture": "SWIPE_DOWN",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (׃)"
         }
       ]
     },
     {
       "codePoint": 1442,
+      "codePoints": [
+        1442
+      ],
       "hex": "05A2",
       "nameHe": "אתנח הפוך",
       "example": "ב֢",
@@ -238,13 +304,16 @@
       "rules": [
         {
           "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
-          "expectedGesture": "SWIPE_DOWN_TWICE",
-          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+          "expectedGesture": "SWIPE_DOWN",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (׃)"
         }
       ]
     },
     {
       "codePoint": 1443,
+      "codePoints": [
+        1443
+      ],
       "hex": "05A3",
       "nameHe": "מונח",
       "example": "ב֣",
@@ -253,6 +322,9 @@
     },
     {
       "codePoint": 1444,
+      "codePoints": [
+        1444
+      ],
       "hex": "05A4",
       "nameHe": "מהפך",
       "example": "ב֤",
@@ -261,6 +333,9 @@
     },
     {
       "codePoint": 1445,
+      "codePoints": [
+        1445
+      ],
       "hex": "05A5",
       "nameHe": "מרכא",
       "example": "ב֥",
@@ -269,6 +344,9 @@
     },
     {
       "codePoint": 1446,
+      "codePoints": [
+        1446
+      ],
       "hex": "05A6",
       "nameHe": "מרכא כפולה",
       "example": "ב֦",
@@ -277,6 +355,9 @@
     },
     {
       "codePoint": 1447,
+      "codePoints": [
+        1447
+      ],
       "hex": "05A7",
       "nameHe": "דרגא",
       "example": "ב֧",
@@ -285,14 +366,20 @@
     },
     {
       "codePoint": 1448,
+      "codePoints": [
+        1448
+      ],
       "hex": "05A8",
       "nameHe": "קדמא",
       "example": "ב֨",
-      "defaultGesture": "NONE",
+      "defaultGesture": "DIAGONAL",
       "rules": []
     },
     {
       "codePoint": 1449,
+      "codePoints": [
+        1449
+      ],
       "hex": "05A9",
       "nameHe": "תלישא קטנה",
       "example": "ב֩",
@@ -301,6 +388,9 @@
     },
     {
       "codePoint": 1450,
+      "codePoints": [
+        1450
+      ],
       "hex": "05AA",
       "nameHe": "ירח בן יומו",
       "example": "ב֪",
@@ -308,13 +398,16 @@
       "rules": [
         {
           "id": "LAST_MAJOR_BEFORE_SOF_PASUK",
-          "expectedGesture": "SWIPE_DOWN_TWICE",
-          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)"
+          "expectedGesture": "SWIPE_DOWN",
+          "sourceText": "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (׃)"
         }
       ]
     },
     {
       "codePoint": 1451,
+      "codePoints": [
+        1451
+      ],
       "hex": "05AB",
       "nameHe": "עולה",
       "example": "ב֫",
@@ -323,6 +416,9 @@
     },
     {
       "codePoint": 1452,
+      "codePoints": [
+        1452
+      ],
       "hex": "05AC",
       "nameHe": "עילוי",
       "example": "ב֬",
@@ -331,6 +427,9 @@
     },
     {
       "codePoint": 1453,
+      "codePoints": [
+        1453
+      ],
       "hex": "05AD",
       "nameHe": "דחי",
       "example": "ב֭",
@@ -339,6 +438,9 @@
     },
     {
       "codePoint": 1454,
+      "codePoints": [
+        1454
+      ],
       "hex": "05AE",
       "nameHe": "זרקא",
       "example": "ב֮",
@@ -347,6 +449,9 @@
     },
     {
       "codePoint": 1455,
+      "codePoints": [
+        1455
+      ],
       "hex": "05AF",
       "nameHe": "סימן עגול",
       "example": "ב֯",
@@ -355,6 +460,9 @@
     },
     {
       "codePoint": 1469,
+      "codePoints": [
+        1469
+      ],
       "hex": "05BD",
       "nameHe": "מתג",
       "example": "בֽ",
@@ -363,6 +471,9 @@
     },
     {
       "codePoint": 1472,
+      "codePoints": [
+        1472
+      ],
       "hex": "05C0",
       "nameHe": "פסק",
       "example": "ב׀",
@@ -371,6 +482,9 @@
     },
     {
       "codePoint": 1470,
+      "codePoints": [
+        1470
+      ],
       "hex": "05BE",
       "nameHe": "מקף",
       "example": "ב־ב",
@@ -379,10 +493,13 @@
     },
     {
       "codePoint": 1475,
+      "codePoints": [
+        1475
+      ],
       "hex": "05C3",
       "nameHe": "סוף פסוק",
       "example": "ב׃",
-      "defaultGesture": "SWIPE_DOWN",
+      "defaultGesture": "LONG_PRESS",
       "rules": []
     }
   ]

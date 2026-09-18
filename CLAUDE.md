@@ -1,8 +1,11 @@
-# Medaker (מדקר) — project context for Claude
+# Medaker (מד׳כר) — project context for Claude
 
 Touch-first web app for practising **Biblical cantillation (טעמי המקרא)**: the learner
 reads an unpointed verse in Torah-scroll (STAM) style and "stabs" (מדקר, like a Yad)
 each word with the gesture that matches its hidden cantillation mark.
+
+**Display name:** the Hebrew name shown to users is **מד׳כר** (with a geresh, U+05F3) — header `<h1>`,
+`metadata.title` and the iOS home-screen title. The repo / package / English name stay "Medaker".
 
 Read this file fully before touching code. It is the single source of truth for
 decisions that are *not* derivable from the code itself. Update it when a decision
@@ -175,30 +178,44 @@ Pashta (U+0599) may appear twice on one word — deduplicated.
 
 **Pipeline:** the sheet (columns `name | Unicode | example | defaultGesture | contextRule |
 expectedGesture`) is imported with `npm run import:taamim` → `src/lib/taamim/taamim.generated.json`
-(35 marks, 18 rules) → `config.ts` merges stable ids / English names / ranks (`TAAM_META`) →
+(36 marks, 18 rules) → `config.ts` merges stable ids / English names / ranks (`TAAM_META`) →
 `TAAMIM`. **Never hand-edit the generated JSON**; `import.test.ts` fails if it is stale.
+To adopt a new sheet: copy it over `data/taamim-mapping.xlsx`, run the importer, fix what throws.
 
 Importer rules (`scripts/import-taamim.mjs`):
 - A mark spanning several sheet rows = continuation rows with empty `name`/`Unicode` that add one
   more `(contextRule, expectedGesture)` pair. Rules keep sheet order.
 - `Unicode` cells like `0591` arrive as the number 591 (Excel); digits are re-read as hex.
-- Hebrew `contextRule` text → identifier via `CONTEXT_RULE_TEXT` (exact, whitespace-normalised).
+- A `Unicode` cell `05A8 + 0599` declares a **compound mark**: `codePoints: [0x05A8, 0x0599]`,
+  `hex: "05A8+0599"`. `TAAM_META` is keyed by that hex and may list `alternates` (other encodings).
+- Hebrew `contextRule` text → identifier via `CONTEXT_RULE_TEXT` (exact, whitespace-normalised;
+  both the current "(׃)" wording and the older "(swipe-down)" wording are registered).
   Unregistered text **throws** — new rules must be registered deliberately (§6b).
-- Gesture labels: `none · long-press · diagonal · triple-tap · קשקוש · tilde · swipe-down · double swipe-down`.
+- Gesture labels: `none · long-press · diagonal · triple-tap · קשקוש · tilde · swipe-down`.
 
-| GestureType         | Hebrew label            | Default for |
-|---------------------|-------------------------|-------------|
-| `LONG_PRESS`        | לחיצה ארוכה (0.5 s)     | סגולתא 0592 · זקף קטון 0594 · זקף גדול 0595 · רביע 0597 · תביר 059B · גרש 059C · גרש מוקדם 059D · גרשיים 059E · קרני פרה 059F · תלישא גדולה 05A0 · פזר 05A1 · אתנח הפוך 05A2 · ירח בן יומו 05AA |
-| `DIAGONAL`          | אלכסון יורד `\` (down & right) | טיפחא 0596 · יתיב 059A · דחי 05AD · פסק 05C0 |
-| `TRIPLE_TAP`        | הקשה משולשת             | אתנחתא 0591 |
-| `ZIGZAG`            | קשקוש כלפי מעלה         | שלשלת 0593 |
-| `TILDE`             | גל ~ / ∞ מימין לשמאל    | צינורית 0598 · זרקא 05AE |
-| `SWIPE_DOWN`        | החלקה למטה              | סוף פסוק 05C3 |
-| `SWIPE_DOWN_TWICE`  | החלקה למטה, ושוב החלקה למטה (one finger, two sequential strokes) | — (only via the LAST_MAJOR_BEFORE_SOF_PASUK rule; the sheet calls it `double swipe-down`) |
-| `NONE`              | ללא                     | פשטא 0599 · מונח 05A3 · מהפך 05A4 · מרכא 05A5 · מרכא כפולה 05A6 · דרגא 05A7 · קדמא 05A8 · תלישא קטנה 05A9 · עולה 05AB · עילוי 05AC · סימן עגול 05AF · מתג 05BD · מקף 05BE |
+| GestureType  | Hebrew label            | Default for |
+|--------------|-------------------------|-------------|
+| `LONG_PRESS` | לחיצה ארוכה (0.5 s)     | סגולתא 0592 · זקף קטון 0594 · זקף גדול 0595 · רביע 0597 · תביר 059B · גרש 059C · גרש מוקדם 059D · גרשיים 059E · קרני פרה 059F · תלישא גדולה 05A0 · פזר 05A1 · אתנח הפוך 05A2 · ירח בן יומו 05AA · **סוף פסוק 05C3** |
+| `DIAGONAL`   | אלכסון יורד `\` (down & right) | טיפחא 0596 · **פשטא 0599** · **תרין פשטין 05A8+0599** · יתיב 059A · **קדמא 05A8** · דחי 05AD · פסק 05C0 |
+| `TRIPLE_TAP` | הקשה משולשת             | אתנחתא 0591 |
+| `ZIGZAG`     | קשקוש כלפי מעלה         | שלשלת 0593 |
+| `TILDE`      | גל ~ / ∞ מימין לשמאל    | צינורית 0598 · זרקא 05AE |
+| `SWIPE_DOWN` | החלקה למטה              | — (only via the LAST_MAJOR_BEFORE_SOF_PASUK rule) |
+| `NONE`       | ללא                     | מונח 05A3 · מהפך 05A4 · מרכא 05A5 · מרכא כפולה 05A6 · דרגא 05A7 · תלישא קטנה 05A9 · עולה 05AB · עילוי 05AC · סימן עגול 05AF · מתג 05BD · מקף 05BE |
 
-Changes vs. the first sheet (2026-09-16): גרש/גרש מוקדם moved from diagonal to long-press by
-default; סוף פסוק moved from long-press to swipe-down; two new gesture types.
+Sheet history: **v1** (2026-09-16 a.m.) flat mapping · **v2** (2026-09-16) context rules, sof pasuq =
+swipe-down, last-major → swipe-down twice · **v3 (2026-09-18, current)** last-major → single
+`swipe-down`; sof pasuq → long-press; פשטא and קדמא → diagonal; new compound תרין פשטין. The
+`SWIPE_DOWN_TWICE` gesture and its 600 ms detection window were removed with v3 (nothing maps to it,
+and the window delayed every single swipe-down); see git history if it ever returns.
+
+**Compound marks.** `marksOf()` (tokenize.ts) first collects single marks, then for every
+`COMPOUND_TAAMIM` entry checks whether the word holds all code points of its sheet sequence or of
+an `alternates` sequence (with multiplicity); if so the compound **replaces** its components at the
+first component's position. תרין פשטין: sheet = U+05A8 + U+0599; WLC/Sefaria-WLC encode it as
+U+0599 twice (`alternates: [[0x0599, 0x0599]]`), e.g. תֹ֙הוּ֙ in Gen 1:2.
+Ranks: pashta / tarin pashtin = 2 (disjunctive); qadma = 5 — it carries a gesture but is a
+conjunctive, so any disjunctive (or paseq) on the same word governs (e.g. qadma + geresh → geresh).
 
 `RecognizedGesture = GestureType | "TAP" | "UNKNOWN"`. TAP (1–2 taps) and UNKNOWN are
 **not attempts**: they never count as right or wrong (single tap is how users explore).
@@ -214,15 +231,18 @@ position }` where `sequence = markSequence(tokens)` is every mark of the verse i
 
 | Rule id | Sheet text (Hebrew) | Evaluates true when | Marks |
 |---------|--------------------|---------------------|-------|
-| `LAST_MAJOR_BEFORE_SOF_PASUK` | במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down) | no later mark in the verse is *major* AND a sof pasuq (`SWIPE_DOWN` default) occurs later | אתנחתא, סגולתא, זקף קטון/גדול, תביר, גרש, גרש מוקדם, גרשיים, קרני פרה, תלישא גדולה, פזר, אתנח הפוך, ירח בן יומו → `SWIPE_DOWN_TWICE` |
+| `LAST_MAJOR_BEFORE_SOF_PASUK` | במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (׃) | scanning forward, sof pasuq U+05C3 is reached before any other *major* accent | אתנחתא, סגולתא, זקף קטון/גדול, תביר, גרש, גרש מוקדם, גרשיים, קרני פרה, תלישא גדולה, פזר, אתנח הפוך, ירח בן יומו → `SWIPE_DOWN` |
 | `NEXT_MAJOR_IS_REVIA_WITHOUT_PASEK` | במקרה שהטעם מסוג triple-tap / long-press הבא אחריו הוא רביע (597) ואין ביניהם פסק (05C0) | scanning forward, the first *major* mark is רביע U+0597 and no פסק U+05C0 was met before it | גרש, גרש מוקדם, גרשיים, קרני פרה, תלישא גדולה → `DIAGONAL` |
 
-*Major* = a mark whose **default** gesture is `TRIPLE_TAP` or `LONG_PRESS` (`isMajorMark`), exactly
-as the sheet words it. Rules are data-driven: רביע is major but has no rule row, so a verse-final
+*Major* = an **accent** whose **default** gesture is `TRIPLE_TAP` or `LONG_PRESS` (`isMajorMark`),
+exactly as the sheet words it. **Sof pasuq is never major**: it is the terminator the rule measures
+up to and is matched by code point (U+05C3), not by gesture — it is itself a long-press mark since
+sheet v3, and treating it as major would stop the rule from ever firing. Diagonal marks (tipcha,
+pashta, qadma, …) between two major accents are transparent to both rules. Rules are data-driven: רביע is major but has no rule row, so a verse-final
 revia stays `LONG_PRESS`. Verses without a sof pasuq never trigger the first rule.
 
 Examples (all in `rules.test.ts`): Gen 1:1 אלהים (etnahta, only a tipcha follows) →
-`SWIPE_DOWN_TWICE`; Gen 1:2 תהום (etnahta, a zaqef follows) → `TRIPLE_TAP`; Gen 19:16 האנשים
+`SWIPE_DOWN` (and הארץ׃ → `LONG_PRESS`); Gen 1:2 תהום (etnahta, a zaqef follows) → `TRIPLE_TAP`; Gen 19:16 האנשים
 (geresh … munah … revia) → `DIAGONAL`; `אָ֜ ׀ בְּ֗` (paseq between) → `LONG_PRESS`.
 
 **Adding a conditional rule**
@@ -251,15 +271,10 @@ down ──┬── still for longPressMs(500) ──────────�
        ├── up ≤ tapMaxMs(300) & moved ≤ tapSlopPx(10) ─► tap++  ; 3 taps with gaps ≤ tapGapMs(500) → TRIPLE_TAP
        │                                                  else after the gap window → TAP{taps}
        ├── moved > slop … up ─────────────────────────► classifyStroke(points)
-       │        └── SWIPE_DOWN ──► held as pendingSwipe; finger lifted, then a 2nd SWIPE_DOWN starting within
-       │                           swipeTwiceGapMs(600) → SWIPE_DOWN_TWICE; otherwise the lone SWIPE_DOWN is emitted
-       │                           when the window closes (any other gesture flushes the pending swipe first).
-       │                           Strictly ONE finger: a pointerdown while a stroke is active is ignored, so
-       │                           multi-touch never forms a gesture — two fingers down = one SWIPE_DOWN at most.
        └── pointercancel ─────────────────────────────► reset, nothing emitted
 ```
 A press released between 300–500 ms is ignored (neither tap nor press) to avoid noise.
-Because of the swipe-twice window, feedback for a single swipe-down is delayed by ≤ 600 ms.
+One finger only: a pointerdown while a stroke is active is ignored, so multi-touch never forms a gesture.
 
 ### 7.2 Stroke classifier (`classifyStroke`) — order matters
 1. Path length < `minStrokePx`(24) → UNKNOWN.

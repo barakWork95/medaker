@@ -16,7 +16,7 @@ export function MedakerApp() {
       <header className="flex items-center justify-between gap-3 border-b border-gold/30 bg-navy-800/60 px-4 py-2">
         <div className="flex items-center gap-2">
           <Image src={withBasePath("/logo-gold.svg")} alt="" width={40} height={40} priority className="size-10" />
-          <h1 className="text-xl font-bold tracking-tight text-gold">מדקר</h1>
+          <h1 className="text-xl font-bold tracking-tight text-gold">מד׳כר</h1>
         </div>
         <ScriptureNav current={scripture.ref} onNavigate={scripture.goTo} />
       </header>

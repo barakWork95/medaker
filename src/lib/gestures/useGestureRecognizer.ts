@@ -7,8 +7,6 @@
  *               ├─ up < 300ms, moved < 10px ────────► tap (×3 within 500ms gaps → TRIPLE_TAP,
  *               │                                       else TAP{taps} after the window closes)
  *               └─ moved ≥ 10px … pointerup ────────► classifyStroke() → DIAGONAL | ZIGZAG | TILDE | SWIPE_DOWN | UNKNOWN
- *                                                       (SWIPE_DOWN, finger lifted, SWIPE_DOWN again within swipeTwiceGapMs → SWIPE_DOWN_TWICE;
- *                                                        a lone SWIPE_DOWN is emitted when the gap window closes)
  *
  * One hook instance per touch target (word). Uses Pointer Events so mouse, pen
  * and touch behave identically; the element needs the `.gesture-target` class
@@ -69,13 +67,6 @@ export function useGestureRecognizer({
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tapCount = useRef(0);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /**
-   * A SWIPE_DOWN waiting to see whether a second one follows. SWIPE_DOWN_TWICE is
-   * strictly sequential with ONE finger: pointerdown while a stroke is active is ignored
-   * (see onPointerDown), so a two-finger swipe can only ever yield a single SWIPE_DOWN.
-   */
-  const pendingSwipe = useRef<{ event: GestureEvent; startedAt: number; path: StrokePoint[] } | null>(null);
-  const swipeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearTimer = (ref: typeof longPressTimer) => {
     if (ref.current) {
@@ -97,18 +88,6 @@ export function useGestureRecognizer({
     },
     [debugId],
   );
-  const emitRef = useRef(emit);
-  useEffect(() => {
-    emitRef.current = emit;
-  }, [emit]);
-
-  /** Emit a pending lone SWIPE_DOWN now (called when something else interrupts the window). */
-  const flushPendingSwipe = useCallback(() => {
-    clearTimer(swipeTimer);
-    const pending = pendingSwipe.current;
-    pendingSwipe.current = null;
-    if (pending) emitRef.current(pending.event, pending.startedAt, pending.path);
-  }, []);
 
   const reset = useCallback(() => {
     active.current = false;
@@ -123,7 +102,6 @@ export function useGestureRecognizer({
     () => () => {
       clearTimer(longPressTimer);
       clearTimer(tapTimer);
-      clearTimer(swipeTimer);
     },
     [],
   );
@@ -153,12 +131,11 @@ export function useGestureRecognizer({
           longPressFired.current = true;
           tapCount.current = 0;
           clearTimer(tapTimer);
-          flushPendingSwipe();
           emit({ gesture: "LONG_PRESS" }, startedAt, points.current);
         }
       }, longPressMs ?? getGestureConfig().longPressMs);
     },
-    [disabled, emit, flushPendingSwipe, longPressMs],
+    [disabled, emit, longPressMs],
   );
 
   const onPointerMove = useCallback((e: ReactPointerEvent<HTMLElement>) => {
@@ -189,7 +166,6 @@ export function useGestureRecognizer({
 
       if (!wasMoved) {
         if (duration > cfg.tapMaxMs) return; // a press that was released too early: ignore
-        flushPendingSwipe();
         tapCount.current += 1;
         clearTimer(tapTimer);
         if (tapCount.current >= 3) {
@@ -208,30 +184,9 @@ export function useGestureRecognizer({
       tapCount.current = 0;
       clearTimer(tapTimer);
       const classification = classifyStroke(path, cfg);
-      const event: GestureEvent = { gesture: classification.gesture, classification, points: path };
-
-      if (classification.gesture === "SWIPE_DOWN") {
-        if (pendingSwipe.current) {
-          // second sequential swipe-down inside the window → SWIPE_DOWN_TWICE
-          clearTimer(swipeTimer);
-          const first = pendingSwipe.current;
-          pendingSwipe.current = null;
-          emit(
-            { gesture: "SWIPE_DOWN_TWICE", classification, points: [...first.path, ...path] },
-            first.startedAt,
-            [...first.path, ...path],
-          );
-          return;
-        }
-        pendingSwipe.current = { event, startedAt, path };
-        swipeTimer.current = setTimeout(flushPendingSwipe, cfg.swipeTwiceGapMs);
-        return;
-      }
-
-      flushPendingSwipe();
-      emit(event, startedAt, path);
+      emit({ gesture: classification.gesture, classification, points: path }, startedAt, path);
     },
-    [emit, flushPendingSwipe, reset, tapGapMs],
+    [emit, reset, tapGapMs],
   );
 
   const onPointerCancel = useCallback(

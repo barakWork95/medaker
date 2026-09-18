@@ -22,7 +22,7 @@ describe("mapping table (from taamim.generated.json)", () => {
     const geresh = TAAMIM_BY_ID.get("geresh")!;
     expect(geresh.defaultGesture).toBe("LONG_PRESS");
     expect(geresh.rules.map((r) => [r.id, r.expectedGesture])).toEqual([
-      ["LAST_MAJOR_BEFORE_SOF_PASUK", "SWIPE_DOWN_TWICE"],
+      ["LAST_MAJOR_BEFORE_SOF_PASUK", "SWIPE_DOWN"],
       ["NEXT_MAJOR_IS_REVIA_WITHOUT_PASEK", "DIAGONAL"],
     ]);
     for (const id of ["geresh-muqdam", "gershayim", "qarney-para", "telisha-gedola"]) {
@@ -33,8 +33,16 @@ describe("mapping table (from taamim.generated.json)", () => {
     }
     expect(TAAMIM_BY_ID.get("etnahta")!.rules.map((r) => r.id)).toEqual(["LAST_MAJOR_BEFORE_SOF_PASUK"]);
     expect(TAAMIM_BY_ID.get("revia")!.rules).toEqual([]); // the sheet gives revia no rule
-    expect(TAAMIM_BY_ID.get("sof-pasuq")!.defaultGesture).toBe("SWIPE_DOWN");
+    expect(TAAMIM_BY_ID.get("sof-pasuq")!.defaultGesture).toBe("LONG_PRESS");
     expect(TAAMIM_BY_ID.get("tipeha")!.defaultGesture).toBe("DIAGONAL");
+    // 2026-09-18 sheet: pashta and qadma now carry a diagonal; tarin pashtin is a compound row
+    expect(TAAMIM_BY_ID.get("pashta")!.defaultGesture).toBe("DIAGONAL");
+    expect(TAAMIM_BY_ID.get("qadma")!.defaultGesture).toBe("DIAGONAL");
+    const tarin = TAAMIM_BY_ID.get("tarin-pashtin")!;
+    expect(tarin.compound).toBe(true);
+    expect(tarin.codePoints).toEqual([0x05a8, 0x0599]);
+    expect(tarin.defaultGesture).toBe("DIAGONAL");
+    expect(TAAMIM_BY_ID.get("munah")!.defaultGesture).toBe("NONE");
   });
 
   it("every rule id in the table has an evaluator", () => {
@@ -47,7 +55,9 @@ describe("mapping table (from taamim.generated.json)", () => {
     expect(isMajorMark(TAAMIM_BY_ID.get("etnahta")!)).toBe(true);
     expect(isMajorMark(TAAMIM_BY_ID.get("revia")!)).toBe(true);
     expect(isMajorMark(TAAMIM_BY_ID.get("tipeha")!)).toBe(false); // diagonal
-    expect(isMajorMark(TAAMIM_BY_ID.get("sof-pasuq")!)).toBe(false); // swipe-down
+    // sof pasuq is long-press by default but it is the verse terminator, never a "major accent"
+    expect(isMajorMark(TAAMIM_BY_ID.get("sof-pasuq")!)).toBe(false);
+    expect(isMajorMark(TAAMIM_BY_ID.get("qadma")!)).toBe(false); // diagonal
     expect(isMajorMark(TAAMIM_BY_ID.get("munah")!)).toBe(false);
   });
 });
@@ -71,23 +81,57 @@ describe("standard (no-override) evaluation", () => {
     expect(zaqef1.requiredGesture).toBe("LONG_PRESS");
   });
 
-  it("sof pasuq requires a swipe-down; conjunctives require nothing", () => {
-    expect(byDisplay(GEN_1_1, "הארץ").token.requiredGesture).toBe("SWIPE_DOWN");
-    expect(byDisplay(GEN_1_1, "ברא").token.requiredGesture).toBe("NONE");
+  it("sof pasuq requires a long press; conjunctives without a gesture require nothing", () => {
+    expect(byDisplay(GEN_1_1, "הארץ").token.requiredGesture).toBe("LONG_PRESS");
+    expect(byDisplay(GEN_1_1, "הארץ").token.appliedRule).toBeNull();
+    expect(byDisplay(GEN_1_1, "ברא").token.requiredGesture).toBe("NONE"); // munah
+  });
+
+  it("qadma and pashta require a diagonal", () => {
+    expect(byDisplay(GEN_19_16, "ויחזקו").token.primaryMark?.id).toBe("qadma");
+    expect(byDisplay(GEN_19_16, "ויחזקו").token.requiredGesture).toBe("DIAGONAL");
+    expect(byDisplay(GEN_19_16, "וביד").token.primaryMark?.id).toBe("pashta");
+    expect(byDisplay(GEN_19_16, "וביד").token.requiredGesture).toBe("DIAGONAL");
+  });
+
+  it("recognises tarin pashtin in both encodings as ONE compound mark", () => {
+    const wlc = byDisplay(GEN_1_2, "תהו").token; // תֹ֙הוּ֙ — U+0599 twice (WLC)
+    expect(wlc.marks.map((m) => m.id)).toEqual(["tarin-pashtin"]);
+    expect(wlc.requiredGesture).toBe("DIAGONAL");
+    const sheet = tokenizeVerse("תֹ֨הוּ֙")[0]; // U+05A8 + U+0599 (sheet encoding)
+    expect(sheet.marks.map((m) => m.id)).toEqual(["tarin-pashtin"]);
+    expect(sheet.requiredGesture).toBe("DIAGONAL");
+    // a lone qadma or lone pashta stays itself
+    expect(tokenizeVerse("אָ֨")[0].marks.map((m) => m.id)).toEqual(["qadma"]);
+    expect(tokenizeVerse("אָ֙")[0].marks.map((m) => m.id)).toEqual(["pashta"]);
+  });
+
+  it("a disjunctive on the same word outranks qadma", () => {
+    const token = tokenizeVerse("אָ֨בְּ֜ גֽ׃")[0]; // qadma + geresh on one word
+    expect(token.marks.map((m) => m.id)).toEqual(["qadma", "geresh"]);
+    expect(token.primaryMark?.id).toBe("geresh");
   });
 });
 
 describe("LAST_MAJOR_BEFORE_SOF_PASUK", () => {
-  it("overrides the last major mark of the verse with swipe-down twice", () => {
+  it("overrides the last major mark of the verse with a swipe-down", () => {
     const { token } = byDisplay(GEN_1_1, "אלהים"); // etnahta; only tipeha (diagonal) follows
-    expect(token.requiredGesture).toBe("SWIPE_DOWN_TWICE");
+    expect(token.requiredGesture).toBe("SWIPE_DOWN");
     expect(token.appliedRule).toBe("LAST_MAJOR_BEFORE_SOF_PASUK");
 
     const zaqef = byDisplay(GEN_1_2, "אלהים").token; // zaqef qatan on the second אלהים
-    expect(zaqef.requiredGesture).toBe("SWIPE_DOWN_TWICE");
+    expect(zaqef.requiredGesture).toBe("SWIPE_DOWN");
 
     const etnahta = byDisplay(GEN_19_16, "עליו").token; // only tipeha + conjunctives follow
-    expect(etnahta.requiredGesture).toBe("SWIPE_DOWN_TWICE");
+    expect(etnahta.requiredGesture).toBe("SWIPE_DOWN");
+  });
+
+  it("still fires although sof pasuq itself is a long-press mark (terminator, not an accent)", () => {
+    const tokens = tokenizeVerse(GEN_1_1);
+    const last = tokens[tokens.length - 1];
+    expect(last.primaryMark?.id).toBe("sof-pasuq");
+    expect(last.primaryMark?.defaultGesture).toBe("LONG_PRESS");
+    expect(tokens.find((t) => t.display === "אלהים")!.requiredGesture).toBe("SWIPE_DOWN");
   });
 
   it("does not fire without a sof pasuq later in the verse", () => {
@@ -111,6 +155,12 @@ describe("NEXT_MAJOR_IS_REVIA_WITHOUT_PASEK", () => {
     expect(token.appliedRule).toBe("NEXT_MAJOR_IS_REVIA_WITHOUT_PASEK");
   });
 
+  it("ignores diagonal marks (qadma, pashta) between geresh and revia", () => {
+    const tokens = tokenizeVerse("אָ֜ בְּ֨ גּ֙ דָּ֗ הֽ׃");
+    expect(tokens[0].requiredGesture).toBe("DIAGONAL");
+    expect(tokens[0].appliedRule).toBe("NEXT_MAJOR_IS_REVIA_WITHOUT_PASEK");
+  });
+
   it("is blocked by a paseq between geresh and revia", () => {
     const tokens = tokenizeVerse("אָ֜ ׀ בְּ֗ גֽ׃");
     expect(tokens[0].marks.map((m) => m.id)).toEqual(["geresh", "paseq"]);
@@ -132,7 +182,7 @@ describe("NEXT_MAJOR_IS_REVIA_WITHOUT_PASEK", () => {
   it("evaluates the chain in sheet order: last-major wins when both could apply", () => {
     // geresh with nothing major after it → LAST_MAJOR (rule 1); revia rule cannot fire anyway
     const tokens = tokenizeVerse("אָ֜ בְּ֖ גֽ׃");
-    expect(tokens[0].requiredGesture).toBe("SWIPE_DOWN_TWICE");
+    expect(tokens[0].requiredGesture).toBe("SWIPE_DOWN");
     expect(tokens[0].appliedRule).toBe("LAST_MAJOR_BEFORE_SOF_PASUK");
   });
 });
@@ -159,14 +209,14 @@ describe("resolveGesture / validation in verse context", () => {
   it("validateGestureInContext accepts the override and rejects the default", () => {
     const tokens = tokenizeVerse(GEN_1_1);
     const i = tokens.findIndex((t) => t.display === "אלהים");
-    const ok = validateGestureInContext(tokens, i, "SWIPE_DOWN_TWICE");
+    const ok = validateGestureInContext(tokens, i, "SWIPE_DOWN");
     expect(ok.correct).toBe(true);
     expect(ok.rule).toBe("LAST_MAJOR_BEFORE_SOF_PASUK");
     expect(ok.message).toContain(CONTEXT_RULES.LAST_MAJOR_BEFORE_SOF_PASUK.labelHe);
     const bad = validateGestureInContext(tokens, i, "TRIPLE_TAP");
     expect(bad.correct).toBe(false);
-    expect(bad.expected).toBe("SWIPE_DOWN_TWICE");
-    expect(validateGesture(tokens[i], "SWIPE_DOWN_TWICE")).toEqual(ok);
+    expect(bad.expected).toBe("SWIPE_DOWN");
+    expect(validateGesture(tokens[i], "SWIPE_DOWN")).toEqual(ok);
   });
 
   it("the same word validates differently in a different verse context", () => {
@@ -177,6 +227,6 @@ describe("resolveGesture / validation in verse context", () => {
     expect(validateGestureInContext(alone, 0, "LONG_PRESS").correct).toBe(true);
     expect(validateGestureInContext(beforeRevia, 0, "LONG_PRESS").correct).toBe(false);
     expect(validateGestureInContext(beforeRevia, 0, "DIAGONAL").correct).toBe(true);
-    expect(validateGestureInContext(last, 0, "SWIPE_DOWN_TWICE").correct).toBe(true);
+    expect(validateGestureInContext(last, 0, "SWIPE_DOWN").correct).toBe(true);
   });
 });

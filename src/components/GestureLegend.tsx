@@ -1,6 +1,6 @@
 import { GESTURE_ICONS, GESTURE_LABELS_HE, type GestureType } from "@/lib/taamim/config";
 
-const ORDER: GestureType[] = ["LONG_PRESS", "DIAGONAL", "TRIPLE_TAP", "ZIGZAG", "TILDE", "SWIPE_DOWN", "SWIPE_DOWN_TWICE"];
+const ORDER: GestureType[] = ["LONG_PRESS", "DIAGONAL", "TRIPLE_TAP", "ZIGZAG", "TILDE", "SWIPE_DOWN"];
 
 export function GestureLegend() {
   return (

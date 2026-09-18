@@ -33,11 +33,11 @@ describe("tokenizeVerse", () => {
     expect(tokens.map((t) => t.requiredGesture)).toEqual([
       "DIAGONAL", // בראשית — tipeha
       "NONE", // ברא — munah
-      "SWIPE_DOWN_TWICE", // אלהים — etnahta, last major mark before sof pasuq (context rule)
+      "SWIPE_DOWN", // אלהים — etnahta, last major mark before sof pasuq (context rule)
       "NONE", // את — merkha
       "DIAGONAL", // השמים — tipeha
       "NONE", // ואת — merkha
-      "SWIPE_DOWN", // הארץ׃ — sof pasuq (meteg is NONE, sof pasuq wins by rank)
+      "LONG_PRESS", // הארץ׃ — sof pasuq (meteg is NONE, sof pasuq wins by rank)
     ]);
   });
 
@@ -46,7 +46,8 @@ describe("tokenizeVerse", () => {
     expect(t).toHaveLength(2);
     expect(t[0].marks.map((m) => m.id)).toEqual(["meteg", "shalshelet", "paseq"]);
     expect(t[0].requiredGesture).toBe("ZIGZAG"); // shalshelet (rank 1) beats paseq (rank 4)
-    expect(t[1].requiredGesture).toBe("SWIPE_DOWN");
+    expect(t[1].marks.map((m) => m.id)).toEqual(["qadma", "sof-pasuq"]);
+    expect(t[1].requiredGesture).toBe("LONG_PRESS"); // sof pasuq (rank 0) governs over qadma
   });
 
   it("keeps maqaf groups as a single token", () => {

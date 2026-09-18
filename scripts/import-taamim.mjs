@@ -9,6 +9,8 @@
  *  - A mark may span several rows: continuation rows leave name/Unicode/example empty and
  *    carry one extra contextRule/expectedGesture pair. Rules are kept in sheet order and
  *    evaluated first-match-wins.
+ *  - A Unicode cell may name a COMPOUND mark as "05A8 + 0599" (תרין פשטין): all listed code
+ *    points on one word form a single mark. Output: codePoints [..], hex "05A8+0599".
  *  - Hebrew contextRule text is mapped to an explicit identifier via CONTEXT_RULE_TEXT.
  *    Unknown text is an error: register the rule here AND implement it in
  *    src/lib/taamim/rules.ts (CONTEXT_RULES) before importing.
@@ -33,12 +35,13 @@ export const GESTURE_LABELS = {
   zigzag: "ZIGZAG",
   tilde: "TILDE",
   "swipe-down": "SWIPE_DOWN",
-  "double swipe-down": "SWIPE_DOWN_TWICE", // sequential: swipe down, lift, swipe down again
-  "swipe-down twice": "SWIPE_DOWN_TWICE",
 };
 
 /** Hebrew contextRule text (whitespace-normalised) → rule identifier. */
 export const CONTEXT_RULE_TEXT = {
+  "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (׃)":
+    "LAST_MAJOR_BEFORE_SOF_PASUK",
+  // wording of the 2026-09-16 sheet, kept so older sheets still import
   "במקרה שהוא הטעם האחרון מסוג (triple-tap / long-press) עד לסוף הפסוק (swipe-down)":
     "LAST_MAJOR_BEFORE_SOF_PASUK",
   "במקרה שהטעם מסוג triple-tap / long-press הבא אחריו הוא רביע (597) ואין ביניהם פסק (05C0)":
@@ -54,11 +57,15 @@ function gestureOf(label, where) {
   return g;
 }
 
-function codePointOf(cell, where) {
+function codePointsOf(cell, where) {
   // "059A" stays text; "0591" is parsed by Excel as the number 591 → read its digits as hex.
-  const hex = typeof cell === "number" ? String(Math.round(cell)).padStart(4, "0") : norm(cell).toUpperCase();
-  if (!/^[0-9A-F]{4}$/.test(hex)) throw new Error(`${where}: bad Unicode cell "${cell}"`);
-  return { hex, codePoint: parseInt(hex, 16) };
+  // "05A8 + 0599" is a compound mark: every listed code point must be on the word.
+  const text = typeof cell === "number" ? String(Math.round(cell)).padStart(4, "0") : norm(cell).toUpperCase();
+  const parts = text.split("+").map((p) => p.trim().padStart(4, "0"));
+  for (const part of parts) {
+    if (!/^[0-9A-F]{4}$/.test(part)) throw new Error(`${where}: bad Unicode cell "${cell}"`);
+  }
+  return { hex: parts.join("+"), codePoints: parts.map((p) => parseInt(p, 16)) };
 }
 
 export function parseTaamimRows(rows) {
@@ -96,10 +103,11 @@ export function parseTaamimRows(rows) {
       return;
     }
     if (!name || unicode === undefined) throw new Error(`${where}: name and Unicode must both be present`);
-    const { hex, codePoint } = codePointOf(unicode, where);
-    if (marks.some((m) => m.codePoint === codePoint)) throw new Error(`${where}: duplicate code point ${hex}`);
+    const { hex, codePoints } = codePointsOf(unicode, where);
+    if (marks.some((m) => m.hex === hex)) throw new Error(`${where}: duplicate code point ${hex}`);
     marks.push({
-      codePoint,
+      codePoint: codePoints[0],
+      codePoints,
       hex,
       nameHe: name,
       example: norm(cell(row, "example")) || null,
