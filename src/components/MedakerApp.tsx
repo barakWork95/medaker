@@ -2,14 +2,18 @@
 
 /** App shell: header (logo, title, scripture navigation) + the trainer for the current verse. */
 import Image from "next/image";
+import { useState } from "react";
 import { withBasePath } from "@/lib/basePath";
 import { formatRefHe, refToKey } from "@/lib/scripture";
 import { useScripture } from "@/lib/scripture/useScripture";
 import { ScriptureNav } from "./ScriptureNav";
+import { SettingsMenu } from "./SettingsMenu";
 import { Trainer } from "./Trainer";
+import { VoiceCalibration } from "./audio/VoiceCalibration";
 
 export function MedakerApp() {
   const scripture = useScripture();
+  const [calibrating, setCalibrating] = useState(false);
 
   return (
     <div className="flex flex-1 flex-col">
@@ -18,8 +22,12 @@ export function MedakerApp() {
           <Image src={withBasePath("/logo-gold.svg")} alt="" width={40} height={40} priority className="size-10" />
           <h1 className="text-xl font-bold tracking-tight text-gold">מד׳כר</h1>
         </div>
-        <ScriptureNav current={scripture.ref} onNavigate={scripture.goTo} />
+        <div className="flex items-center gap-1">
+          <ScriptureNav current={scripture.ref} onNavigate={scripture.goTo} />
+          <SettingsMenu onCalibrate={() => setCalibrating(true)} />
+        </div>
       </header>
+      <VoiceCalibration open={calibrating} onClose={() => setCalibrating(false)} />
 
       <main className="flex flex-1 flex-col">
         {scripture.status === "ready" && scripture.text ? (
@@ -29,6 +37,7 @@ export function MedakerApp() {
             text={scripture.text}
             onNext={scripture.hasNext ? scripture.next : undefined}
             onPrev={scripture.hasPrev ? scripture.prev : undefined}
+            onCalibrate={() => setCalibrating(true)}
           />
         ) : (
           <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-4 px-4 py-16 text-center">

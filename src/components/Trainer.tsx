@@ -24,6 +24,8 @@ import { VerseScroll } from "./VerseScroll";
 import { GestureLegend } from "./GestureLegend";
 import { ExamReport } from "./ExamReport";
 import { TuningPanel } from "./TuningPanel";
+import { MicIcon } from "./audio/AudioRecorder";
+import { VerseRecorder } from "./audio/VerseRecorder";
 import { useUrlFlag } from "@/lib/useUrlFlag";
 
 type Mode = "practice" | "exam";
@@ -34,11 +36,14 @@ export interface TrainerProps {
   text: string;
   onNext?: () => void;
   onPrev?: () => void;
+  /** Opens the voice-calibration sheet (owned by MedakerApp). */
+  onCalibrate?: () => void;
 }
 
-export function Trainer({ verseRef, text, onNext, onPrev }: TrainerProps) {
+export function Trainer({ verseRef, text, onNext, onPrev, onCalibrate }: TrainerProps) {
   const [mode, setMode] = useState<Mode>("practice");
   const [hint, setHint] = useState(false);
+  const [recording, setRecording] = useState(false);
   const [toast, setToast] = useState<{ text: string; tone: "correct" | "incorrect" | "info" } | null>(null);
   // `?tune=1` opens the on-device tuning panel (see lib/gestures/config-store.ts);
   // the footer link / ✕ override it for the session.
@@ -182,6 +187,30 @@ export function Trainer({ verseRef, text, onNext, onPrev }: TrainerProps) {
           />
         ))}
       </VerseScroll>
+
+      {/* Recording entry point (Phase 1: capture + basic pitch metrics) */}
+      <div className="flex justify-center">
+        <button
+          type="button"
+          onClick={() => setRecording(true)}
+          className="flex min-h-11 items-center gap-2 rounded-full border border-gold/60 px-4 text-sm font-medium text-gold hover:bg-gold/10"
+          aria-haspopup="dialog"
+          data-testid="record-verse"
+        >
+          <MicIcon className="size-5" />
+          הקלטת הפסוק
+        </button>
+      </div>
+      <VerseRecorder
+        open={recording}
+        onClose={() => setRecording(false)}
+        verseRef={verseRef}
+        text={text}
+        onCalibrate={() => {
+          setRecording(false);
+          onCalibrate?.();
+        }}
+      />
 
       {/* Status line */}
       <div className="flex min-h-10 flex-wrap items-center justify-between gap-3 text-sm">

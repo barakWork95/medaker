@@ -37,7 +37,12 @@ src/
     layout.tsx           <html lang="he" dir="rtl">, fonts, metadata, viewport (no zoom)
     page.tsx             renders <MedakerApp/>
   components/
-    MedakerApp.tsx       app shell: header (logo, title, ScriptureNav) + Trainer keyed by verse
+    MedakerApp.tsx       app shell: header (logo, title, ScriptureNav, SettingsMenu) + Trainer keyed by verse + VoiceCalibration sheet
+    SettingsMenu.tsx     header gear → settings sheet (voice-profile status, calibrate, delete)
+    audio/AudioRecorder.tsx    mic/stop control + live WaveformCanvas + <audio> playback (presentation only)
+    audio/WaveformCanvas.tsx   rAF-driven time-domain waveform from the recorder's AnalyserNode
+    audio/VoiceCalibration.tsx כיול קול flow: intro → 3 words → result → save VoiceProfile
+    audio/VerseRecorder.tsx    record the current verse + basic pitch metrics vs. the profile (Phase 1)
     ScriptureNav.tsx     header trigger + bottom sheet: quick search, Book → Chapter/Parasha → Verse
     BottomSheet.tsx      mobile-first modal (slide-up, safe-area aware, Escape/backdrop close)
     TaamWord.tsx         ★ single word touch target with context-aware validation
@@ -73,6 +78,13 @@ src/
     scripture/loader.ts  chapter text: memory → localStorage → Sefaria WLC → offline seed
     scripture/useScripture.ts      navigation state hook (ref, status, text, goTo/next/prev)
     basePath.ts          withBasePath() for /public assets (next/image + metadata icons need it)
+    audio/recorder.ts    AudioRecorderService: getUserMedia + MediaRecorder + AnalyserNode tap (no React)
+    audio/useAudioRecorder.ts  React hook over the service (status machine, elapsed timer, object URLs)
+    audio/decode.ts      Blob → mono Float32 PCM via a throw-away AudioContext
+    audio/pitch.ts       ★ F0 tracker (McLeod NSDF @16 kHz) + summarizePitch() — pure, tested
+    audio/analyze.ts     analyzeRecording(): decode → track → summary
+    audio/voice-profile.ts     VoiceProfile type, computeVoiceProfile(), localStorage store + hook
+    audio/calibration-words.ts the 3 calibration words (אתנחתא / זקף קטון / סגולתא) + guidance text
 data/
   taamim-mapping.xlsx    the user's "טעמי המקרא-Medaker.xlsx" — SOURCE OF TRUTH for the mapping
 .github/workflows/deploy.yml  CI (lint/typecheck/test) + static export + GitHub Pages deploy on push to main
@@ -447,3 +459,63 @@ titles + `BOOK_ALIASES`) followed by up to two numbers (digits or Hebrew numeral
 chapter → 1; פרק/פסוק words ignored) → bare parasha name/alias. Errors are Hebrew user messages.
 Documented ambiguities: "שמואל א ב" = I Samuel ch. 2 (book names win); a name that is both a book
 and a parasha (בראשית, שמות, במדבר, דברים, שופטים) resolves to the book — use "פרשת שופטים".
+
+## 14. Voice recording & Temani cantillation assessment (Phase 1 of 3 — done)
+
+Roadmap: **1 capture + calibration (this)** → 2 verse recording model (per-word alignment,
+pitch contour extraction per accent) → 3 evaluation against expected Yemenite patterns.
+Everything is client-side; nothing is uploaded. All audio code lives under `src/lib/audio`
+(no React except the hook and the profile hook) and `src/components/audio`.
+
+**Recorder (`recorder.ts`, `useAudioRecorder.ts`).** `AudioRecorderService` wraps
+`getUserMedia({audio})` + `MediaRecorder` and taps the stream with an `AnalyserNode`
+(fftSize `WAVEFORM_SIZE` = 1024, not connected to the destination → no monitoring feedback).
+MIME is negotiated with `MediaRecorder.isTypeSupported` in this order: webm/opus (Chrome,
+Android, Firefox) → mp4/AAC (Safari, iOS ≥ 14.5) → ogg/opus → aac. Duration is measured with
+`performance.now()` because Chrome's webm blobs have no duration metadata. iOS: `start()` must
+run inside a user gesture (AudioContext policy) — the mic button's click handler does.
+Errors map to `RecorderErrorCode` with Hebrew messages (`RECORDER_ERROR_MESSAGES_HE`).
+The hook exposes `status: unsupported|idle|requesting|recording|stopped|error`, `recording`
+(`{blob, mimeType, durationMs, url}`), `elapsedMs`, `start/stop/reset`, `getWaveform`. Object
+URLs are revoked on reset/unmount; `unsupported` is set in an effect so SSR/hydration match.
+`maxDurationMs` auto-stops (6 s per calibration take, 90 s per verse).
+
+**Analysis (`decode.ts`, `pitch.ts`, `analyze.ts`).** The blob is decoded with the same
+browser that recorded it (each can decode its own format), mixed to mono, resampled to 16 kHz
+(box low-pass + linear interpolation) and tracked with a compact McLeod pitch method:
+64 ms frames / 10 ms hop, DC removal, RMS gate (≥ 10 % of the loudest frame and ≥ 0.005),
+NSDF over τ for 60–500 Hz, first key maximum ≥ 0.8 × global max (octave-error guard), parabolic
+interpolation, clarity ≥ 0.6 → voiced, 5-frame median filter. `summarizePitch()` gives
+mean/median, p10/p90 (robust range), `rangeSemitones = 12·log2(p90/p10)` and `voicedRatio`.
+Accuracy on synthetic harmonic tones is < 2 % (pitch.test.ts); real speech has not been
+benchmarked yet — Phase 2 should add fixtures recorded on a phone. Analysis of a 3 s take is
+well under 100 ms on a laptop; keep it on the main thread until it isn't.
+
+**Voice profile (`voice-profile.ts`).** `VoiceProfile { version 1, createdAt, baselineF0,
+f0Min, f0Max, rangeSemitones, samples[], mimeType }` in `localStorage["medaker.voiceProfile.v1"]`,
+read through `useVoiceProfile()` (useSyncExternalStore; server snapshot null). A take is
+accepted when it is ≥ 400 ms and ≥ 25 % voiced (`checkSample`). `computeVoiceProfile()` takes
+the **median of the samples' median F0** as baseline and the lowest p10 / highest p90 as the
+range. Corrupt or foreign data reads as "no profile".
+
+**Calibration words (`calibration-words.ts`).** Three real WLC words, one per pattern:
+אֱלֹהִ֑ים (אתנחתא, Gen 1:1) · וָבֹ֔הוּ (זקף קטון, Gen 1:2) · הָרָקִיעַ֒ (סגולתא, Gen 1:7).
+`guidanceHe` texts are **placeholders describing the melodic shape in plain words**; the exact
+Temani melody per accent must be confirmed by a domain expert before Phase 3, and the word list
+may grow (a word per accent family) when the evaluation model needs it.
+
+**UI.** Header gear → `SettingsMenu` (profile status, "כיול קול" / "כיול מחדש", "מחיקת הכיול")
+→ `VoiceCalibration` sheet owned by `MedakerApp`; the mic pill under the verse (`Trainer`) →
+`VerseRecorder` sheet (pointed verse in the STAM font, recorder, playback, "ניתוח בסיסי":
+duration, median F0, range, voiced share, Δ semitones vs. baseline; links to calibration if none).
+Each calibration step mounts its own recorder (`key={index}`) so the microphone is released
+between takes. All sheets are the shared `BottomSheet` (mobile-first, RTL, safe-area aware).
+
+**Testing without a microphone.** In the in-app browser, replace `getUserMedia` with an
+oscillator-driven `MediaStreamDestination` (see the session notes in git history / memory):
+takes at 130/150/120 Hz must yield baseline 130 Hz and range 120–150 Hz. Unit tests cover the
+tracker (steady tones, 48 kHz input, silence, noise, glides, gating) and the profile store.
+
+**Phase 2 pointers.** Keep `PitchFrame[]` (time-stamped) — per-word alignment will slice it.
+Consider recording PCM straight from an `AudioWorklet` when Phase 2 needs sample-accurate
+timing, and an `OfflineAudioContext`/worker if analysis of 90 s takes ever stalls the UI.
