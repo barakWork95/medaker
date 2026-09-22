@@ -4,6 +4,7 @@
  * and a longer gap between words. Returns the samples plus the ground-truth word boundaries.
  * Not speech — but it has exactly the energy/voicing structure the local engine aligns on.
  */
+import { ACCENT_TEMPLATES_BY_MARK } from "./accent-templates";
 import type { ExpectedWord } from "./expected";
 
 export interface SynthOptions {
@@ -24,6 +25,12 @@ export interface SynthOptions {
   amplitudeJitter?: number;
   /** Seed for jitter / noise. */
   seed?: number;
+  /**
+   * Pitch behaviour: "flat" = every syllable at f0 (stressed +12 %); "accent" = words with a
+   * disjunctive follow their accent template from the stressed syllable to the word end;
+   * "inverted" = the template upside-down (wrong melody). Default "flat".
+   */
+  pitch?: "flat" | "accent" | "inverted";
 }
 
 export interface SynthResult {
@@ -47,14 +54,15 @@ export function synthesizeVerse(words: ExpectedWord[], options: SynthOptions = {
   const chunks: Float32Array[] = [];
   const boundaries: SynthResult["boundaries"] = [];
   let t = 0;
-  const push = (seconds: number, voiced: boolean, hz = f0) => {
+  const push = (seconds: number, voiced: boolean, hz = f0, glide?: (u: number) => number) => {
     const n = Math.round(seconds * sr);
     const c = new Float32Array(n);
     if (voiced) {
       let phase = 0;
       const amp = 0.5 * (1 + (rand() * 2 - 1) * jitter);
       for (let i = 0; i < n; i++) {
-        phase += (2 * Math.PI * hz) / sr;
+        const st = glide ? glide(i / n) : 0;
+        phase += (2 * Math.PI * hz * Math.pow(2, st / 12)) / sr;
         // raised-cosine envelope so each burst has one clear energy peak
         const env = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / n);
         c[i] = amp * env * (Math.sin(phase) + 0.5 * Math.sin(2 * phase) + 0.25 * Math.sin(3 * phase)) / 1.75;
@@ -70,8 +78,23 @@ export function synthesizeVerse(words: ExpectedWord[], options: SynthOptions = {
     if (ov.omit) return;
     const start = t;
     const sylls = w.syllables.slice(0, Math.max(1, w.syllables.length - (ov.dropSyllables ?? 0)));
+    // accent melody: template shape spread over stressed syllable → word end
+    const mode = options.pitch ?? "flat";
+    const template = mode !== "flat" && w.disjunctive && w.token.primaryMark ? ACCENT_TEMPLATES_BY_MARK.get(w.token.primaryMark.id) : undefined;
+    const stressedAt = Math.max(0, sylls.findIndex((s) => s.stressed));
+    const melodyCount = sylls.length - stressedAt;
+    const shapeAt = (u: number) => {
+      if (!template) return 0;
+      const pts = template.points.map((p) => (mode === "inverted" ? -p : p));
+      const idx = u * (pts.length - 1);
+      const i = Math.min(pts.length - 2, Math.floor(idx));
+      return pts[i] + (pts[i + 1] - pts[i]) * (idx - i);
+    };
     sylls.forEach((s, si) => {
-      push(s.weight * unit * (ov.scale ?? 1), true, f0 * (s.stressed ? 1.12 : 1));
+      const inMelody = template && si >= stressedAt;
+      const k = si - stressedAt;
+      const glide = inMelody ? (u: number) => shapeAt((k + u) / melodyCount) : undefined;
+      push(s.weight * unit * (ov.scale ?? 1), true, f0 * (s.stressed && !template ? 1.12 : 1), glide);
       if (si < sylls.length - 1) push(gap, false);
     });
     boundaries.push({ index: wi, start, end: t });

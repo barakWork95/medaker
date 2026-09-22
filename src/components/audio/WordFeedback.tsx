@@ -5,8 +5,26 @@
  * hear that segment, expand for details (syllables, rhythm, pitch, notes).
  */
 import { useMemo, useState } from "react";
+import type { AccentVerdict } from "@/lib/speech/contour";
 import type { VerseEvaluation, WordResult, WordStatus } from "@/lib/speech/engine";
 import { friendlyToken } from "@/lib/speech/friendly";
+import { ContourSparkline } from "./ContourSparkline";
+
+const ACCENT: Record<AccentVerdict, { labelHe: string; className: string; icon: string }> = {
+  good: { labelHe: "הניגון נכון", className: "bg-correct text-navy", icon: "♪" },
+  partial: { labelHe: "ניגון חלקי", className: "bg-amber-400 text-navy", icon: "♪" },
+  off: { labelHe: "ניגון שונה מהצפוי", className: "bg-incorrect text-parchment", icon: "♪" },
+  unvoiced: { labelHe: "לא ניתן לנתח ניגון", className: "bg-navy-700 text-parchment/70", icon: "♪" },
+};
+
+/** Phase 2 status → a 0–100 "pronunciation & rhythm" figure for the combined view. */
+export function rhythmScoreOf(w: WordResult): number {
+  if (w.status === "missing") return 0;
+  const share = w.syllablesExpected ? w.syllablesMatched / w.syllablesExpected : 0;
+  const rhythm = w.rhythmDeviation === null ? 1 : Math.max(0, 1 - w.rhythmDeviation / 1.2);
+  const phonetic = w.phonetic ? w.phonetic.score : 1;
+  return Math.round(100 * (0.4 * share + 0.3 * rhythm + 0.3 * phonetic));
+}
 
 const STATUS: Record<WordStatus, { labelHe: string; className: string; dot: string }> = {
   correct: { labelHe: "נכון", className: "bg-correct/25 text-ink ring-correct/60", dot: "bg-correct" },
@@ -42,6 +60,26 @@ export function WordFeedback({
           {summary.extraNuclei > 0 ? ` · ${summary.extraNuclei} הברות עודפות` : ""}
         </span>
       </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm" data-testid="accent-summary">
+        <span className="text-parchment/70">
+          ניגון הטעמים:{" "}
+          {summary.accentScore !== null ? (
+            <strong className="text-gold">{summary.accentScore}%</strong>
+          ) : (
+            <span className="text-parchment/50">לא נותח</span>
+          )}
+        </span>
+        {summary.accentAnalysed > 0 && (
+          <span className="text-parchment/60">
+            {summary.accentGood} מתוך {summary.accentAnalysed} טעמים בניגון הנכון
+          </span>
+        )}
+      </div>
+      {evaluation.fallbackFrom && (
+        <p role="status" className="rounded-lg border border-amber-500/50 bg-amber-400/10 px-3 py-2 text-xs text-parchment/90" data-testid="fallback-note">
+          שרת היישור לא היה זמין ({evaluation.fallbackFrom.reason}); התוצאות חושבו במנוע המקומי.
+        </p>
+      )}
 
       <p className="flex flex-wrap justify-center gap-x-2 gap-y-3 rounded-2xl border-2 border-gold bg-parchment px-3 py-4 font-stam text-2xl font-bold leading-[1.5]" dir="rtl">
         {evaluation.words.map((w) => {
@@ -59,9 +97,20 @@ export function WordFeedback({
               aria-pressed={selected === w.index}
               data-testid="feedback-word"
               data-status={w.status}
-              className={`rounded-md px-1.5 py-0.5 ring-2 transition ${st.className} ${playing === w.index ? "ring-4 ring-gold" : ""} ${selected === w.index ? "outline outline-2 outline-gold-700" : ""}`}
+              className={`relative rounded-md px-1.5 py-0.5 ring-2 transition ${st.className} ${playing === w.index ? "ring-4 ring-gold" : ""} ${selected === w.index ? "outline outline-2 outline-gold-700" : ""}`}
             >
               {w.pointed}
+              {w.accent && (
+                <span
+                  className={`absolute -top-2 -start-2 grid size-4 place-items-center rounded-full text-[10px] font-bold leading-none shadow ${ACCENT[w.accent.verdict].className}`}
+                  title={`${w.accent.nameHe}: ${ACCENT[w.accent.verdict].labelHe}${w.accent.score !== null ? ` (${w.accent.score}%)` : ""}`}
+                  data-testid="accent-badge"
+                  data-verdict={w.accent.verdict}
+                  aria-hidden
+                >
+                  {ACCENT[w.accent.verdict].icon}
+                </span>
+              )}
             </button>
           );
         })}
@@ -74,6 +123,10 @@ export function WordFeedback({
             {STATUS[k].labelHe}
           </li>
         ))}
+        <li className="flex items-center gap-1.5">
+          <span className="grid size-3.5 place-items-center rounded-full bg-correct text-[9px] font-bold text-navy">♪</span>
+          ניגון הטעם (ירוק / כתום / אדום)
+        </li>
         <li className="text-parchment/50">· הקשה על מילה משמיעה את הקטע</li>
       </ul>
 
@@ -122,6 +175,46 @@ export function WordFeedback({
             </ul>
           )}
           {openHint && <p className="mt-1 text-xs text-gold/90">{friendly.hints.find((h) => h.id === openHint)?.detail}</p>}
+
+          {/* Combined scores: pronunciation/rhythm (Phase 2) + accent melody (Phase 3) */}
+          <div className="mt-3 grid grid-cols-2 gap-2" data-testid="combined-scores">
+            <div className="rounded-lg bg-navy-800 px-3 py-2">
+              <div className="text-[11px] text-parchment/60">הגייה וקצב</div>
+              <div className="text-xl font-bold" style={{ color: sel.status === "correct" ? "var(--color-correct)" : sel.status === "minor" ? "#f59e0b" : "var(--color-incorrect)" }} data-testid="rhythm-score">
+                {rhythmScoreOf(sel)}%
+              </div>
+              <div className="text-[11px] text-parchment/50">{STATUS[sel.status].labelHe}</div>
+            </div>
+            <div className="rounded-lg bg-navy-800 px-3 py-2">
+              <div className="text-[11px] text-parchment/60">טעם וניגון{sel.accent ? ` · ${sel.accent.nameHe}` : ""}</div>
+              {sel.accent ? (
+                <>
+                  <div
+                    className="text-xl font-bold"
+                    style={{ color: sel.accent.verdict === "good" ? "var(--color-correct)" : sel.accent.verdict === "partial" ? "#f59e0b" : sel.accent.verdict === "off" ? "var(--color-incorrect)" : "var(--color-parchment)" }}
+                    data-testid="accent-score"
+                  >
+                    {sel.accent.score !== null ? `${sel.accent.score}%` : "—"}
+                  </div>
+                  <div className="text-[11px] text-parchment/50">{ACCENT[sel.accent.verdict].labelHe}</div>
+                </>
+              ) : (
+                <>
+                  <div className="text-xl font-bold text-parchment/40">—</div>
+                  <div className="text-[11px] text-parchment/50">{sel.status === "missing" ? "המילה לא זוהתה" : "מילה מחברת — ללא ניגון מפסיק"}</div>
+                </>
+              )}
+            </div>
+          </div>
+          {sel.accent && sel.accent.contour.length > 0 && (
+            <div className="mt-2 rounded-lg bg-navy-800 px-2 py-1 text-parchment">
+              <ContourSparkline user={sel.accent.contour} template={sel.accent.template} />
+              <div className="flex justify-between text-[11px] text-parchment/60">
+                <span>הצפוי: {sel.accent.templateDescribeHe}</span>
+                <span dir="ltr">{sel.accent.movementSemitones !== null ? `${sel.accent.movementSemitones.toFixed(1)} st` : ""}</span>
+              </div>
+            </div>
+          )}
           <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
             <dt className="text-parchment/60">מצב</dt>
             <dd>{STATUS[sel.status].labelHe}</dd>

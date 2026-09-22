@@ -3,7 +3,8 @@ import { encodeWav } from "@/lib/audio/wav";
 import { estimatePitchTrack } from "@/lib/audio/pitch";
 import { computeVoiceProfile } from "@/lib/audio/voice-profile";
 import { alignSyllables } from "./align";
-import { LocalRhythmEngine, RemoteEngine, evaluateLocally, getRemoteApiUrl, statusFor, type EvaluationRequest, type VerseEvaluation } from "./engine";
+import { FallbackEngine, LocalRhythmEngine, RemoteEngine, evaluateLocally, getRemoteApiUrl, statusFor, type EvaluationRequest, type VerseEvaluation } from "./engine";
+import type { AlignRequest, AlignResponse } from "./api-contract";
 import { buildExpectedWords } from "./expected";
 import { analyzeNuclei, detectNuclei } from "./nuclei";
 import { synthesizeVerse, type SynthOptions } from "./synth";
@@ -133,34 +134,117 @@ describe("statusFor thresholds", () => {
   });
 });
 
-describe("RemoteEngine", () => {
-  it("posts audio + Temani expectations and returns the server's evaluation", async () => {
-    const { request } = fixture(GEN_1_3);
-    const served: VerseEvaluation = { engine: "remote", tradition: "temani", words: [], summary: { correct: 0, minor: 0, missing: 0, score: 0, coverage: 0, extraNuclei: 0 } };
-    const fetchImpl = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
-      expect(String(url)).toBe("https://align.example/evaluate");
-      const body = JSON.parse(String(init?.body));
+describe("RemoteEngine — /api/align contract", () => {
+  /** A fake aligner that answers with the fixture's ground-truth boundaries, split evenly into syllables and phones. */
+  function fakeServer(expected: ReturnType<typeof buildExpectedWords>, synth: ReturnType<typeof synthesizeVerse>, opts: { omit?: number[]; phoneticLow?: number[] } = {}) {
+    return vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      expect(String(url)).toBe("https://align.example/api/align");
+      const body: AlignRequest = JSON.parse(String(init?.body));
+      expect(body.contractVersion).toBe(1);
       expect(body.tradition).toBe("temani");
-      expect(body.expected[0]).toMatchObject({ display: "ויאמר", roman: "waˈyyömar" });
+      expect(body.expected[0]).toMatchObject({ display: expected[0].display, markId: expected[0].token.primaryMark?.id ?? null });
+      expect(body.expected[0].syllables[0]).toMatchObject({ index: 0, stressed: expect.any(Boolean), weight: expect.any(Number) });
       expect(body.audio.mimeType).toBe("audio/wav");
       expect(body.audio.base64.length).toBeGreaterThan(100);
-      return { ok: true, status: 200, json: async () => served } as unknown as Response;
+      const words: AlignResponse["words"] = expected.map((w) => {
+        const b = synth.boundaries.find((x) => x.index === w.index);
+        if (!b || opts.omit?.includes(w.index)) return { index: w.index, start: null, end: null, syllables: [], phones: [] };
+        const n = w.syllables.length;
+        const step = (b.end - b.start) / n;
+        return {
+          index: w.index,
+          start: b.start,
+          end: b.end,
+          syllables: w.syllables.map((s, i) => ({ index: i, start: b.start + i * step, end: b.start + (i + 1) * step })),
+          phones: w.syllables.flatMap((s, i) => [...s.ipa].map((ph, k, arr) => ({ phone: ph, start: b.start + i * step + (k * step) / arr.length, end: b.start + i * step + ((k + 1) * step) / arr.length, score: 0.9 }))),
+          phonetic: { score: opts.phoneticLow?.includes(w.index) ? 0.4 : 0.92, issues: opts.phoneticLow?.includes(w.index) ? ["ו נשמעה כ־V"] : [] },
+        };
+      });
+      const response: AlignResponse = { contractVersion: 1, engine: "fake-aligner", words };
+      return { ok: true, status: 200, json: async () => response } as unknown as Response;
     });
+  }
+
+  it("uses the server's boundaries and phone spans, scores accents locally on them", async () => {
+    const { request, expected, synth } = fixture(GEN_1_1, { pitch: "accent" });
+    const fetchImpl = fakeServer(expected, synth, { phoneticLow: [1] });
     const result = await new RemoteEngine("https://align.example/", fetchImpl as unknown as typeof fetch).evaluate(request);
     expect(result.engine).toBe("remote");
+    expect(result.remoteEngine).toBe("fake-aligner");
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+    for (const b of synth.boundaries) {
+      expect(result.words[b.index].start).toBe(b.start);
+      expect(result.words[b.index].end).toBe(b.end);
+    }
+    expect(result.words[0].phones.length).toBeGreaterThan(3);
+    expect(result.words[0].syllableSpans).toHaveLength(3);
+    expect(result.words[0].phonetic?.score).toBe(0.92);
+    expect(result.words[1].status).toBe("minor"); // low phonetic score
+    expect(result.words[1].phonetic?.issues).toEqual(["ו נשמעה כ־V"]);
+    expect(result.words[2].accent?.verdict).toBe("good"); // etnahta melody, judged locally on server timestamps
+    expect(result.summary.accentAnalysed).toBeGreaterThanOrEqual(3);
   });
 
-  it("rejects server errors and malformed bodies", async () => {
+  it("marks words the server could not find as missing", async () => {
+    const { request, expected, synth } = fixture(GEN_1_3);
+    const result = await new RemoteEngine("https://align.example", fakeServer(expected, synth, { omit: [2] }) as unknown as typeof fetch).evaluate(request);
+    expect(result.words[2].status).toBe("missing");
+    expect(result.words[2].accent).toBeNull();
+    expect(result.summary.missing).toBe(1);
+  });
+
+  it("rejects server errors, malformed bodies and wrong contract versions", async () => {
     const { request } = fixture(GEN_1_3);
     const bad = vi.fn(async () => ({ ok: false, status: 503, json: async () => ({}) }) as unknown as Response);
     await expect(new RemoteEngine("https://x", bad as unknown as typeof fetch).evaluate(request)).rejects.toThrow(/HTTP 503/);
     const malformed = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ nope: 1 }) }) as unknown as Response);
     await expect(new RemoteEngine("https://x", malformed as unknown as typeof fetch).evaluate(request)).rejects.toThrow(/malformed/);
+    const wrongVersion = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ contractVersion: 2, engine: "x", words: [] }) }) as unknown as Response);
+    await expect(new RemoteEngine("https://x", wrongVersion as unknown as typeof fetch).evaluate(request)).rejects.toThrow(/malformed/);
+  });
+
+  it("FallbackEngine answers locally when the server fails and says why", async () => {
+    const { request } = fixture(GEN_1_1);
+    const down = vi.fn(async () => {
+      throw new TypeError("Failed to fetch");
+    });
+    const engine = new FallbackEngine(new RemoteEngine("https://x", down as unknown as typeof fetch), new LocalRhythmEngine());
+    const result = await engine.evaluate(request);
+    expect(result.engine).toBe("local-rhythm");
+    expect(result.fallbackFrom).toEqual({ engine: "remote", reason: "Failed to fetch" });
+    expect(result.summary.correct).toBe(7);
   });
 
   it("is only selected when a URL is configured", () => {
     expect(getRemoteApiUrl()).toBeNull();
+  });
+});
+
+describe("cantillation accent scoring through the local engine", () => {
+  it("scores template-shaped melodies as good and flat/inverted ones lower", async () => {
+    const good = await new LocalRhythmEngine().evaluate(fixture(GEN_1_2, { pitch: "accent", noiseFloor: 0.01, seed: 8 }).request);
+    const flat = await new LocalRhythmEngine().evaluate(fixture(GEN_1_2, { pitch: "flat", noiseFloor: 0.01, seed: 8 }).request);
+    const inverted = await new LocalRhythmEngine().evaluate(fixture(GEN_1_2, { pitch: "inverted", noiseFloor: 0.01, seed: 8 }).request);
+    const disjunctives = good.words.filter((w) => w.accent);
+    expect(disjunctives.length).toBeGreaterThanOrEqual(5); // revia, zaqef, tipeha, etnahta, zaqef, tipeha, sof pasuq …
+    expect(good.summary.accentScore as number).toBeGreaterThanOrEqual(70);
+    expect(good.summary.accentGood).toBeGreaterThanOrEqual(Math.floor(disjunctives.length * 0.7));
+    expect(flat.summary.accentScore as number).toBeLessThan(good.summary.accentScore as number);
+    expect(inverted.summary.accentScore as number).toBeLessThan((good.summary.accentScore as number) - 25);
+    // conjunctive words carry no accent analysis; rhythm/alignment is unaffected by the melody
+    expect(good.words.filter((w) => !w.accent).every((w) => w.status === "correct")).toBe(true);
+    expect(good.summary.missing).toBe(0);
+  });
+
+  it("exposes the analysed region and contours for the UI", async () => {
+    const result = await new LocalRhythmEngine().evaluate(fixture(GEN_1_1, { pitch: "accent" }).request);
+    const etnahta = result.words[2].accent!; // אלהים
+    expect(etnahta.markId).toBe("etnahta");
+    expect(etnahta.region.end).toBe(result.words[2].end);
+    expect(etnahta.region.start).toBeGreaterThanOrEqual(result.words[2].start as number);
+    expect(etnahta.contour).toHaveLength(16);
+    expect(etnahta.template).toHaveLength(16);
+    expect(etnahta.templateDescribeHe.length).toBeGreaterThan(5);
   });
 });
 

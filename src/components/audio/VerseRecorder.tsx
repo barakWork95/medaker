@@ -60,8 +60,8 @@ export function VerseRecorder({
       setPitch(summarizePitch(estimatePitchTrack(decoded.samples, decoded.sampleRate)));
       const engine = getEngine();
       setEvaluation(await engine.evaluate({ recording: rec, verse: { ref: verseRef, text }, profile, tradition: "temani" }));
-    } catch (err) {
-      setProblem(err instanceof Error && /alignment server/.test(err.message) ? "שרת הניתוח אינו זמין. נסו שוב מאוחר יותר." : "לא ניתן לנתח את ההקלטה.");
+    } catch {
+      setProblem("לא ניתן לנתח את ההקלטה.");
     } finally {
       setBusy(false);
     }

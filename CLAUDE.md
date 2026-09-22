@@ -43,7 +43,8 @@ src/
     audio/WaveformCanvas.tsx   rAF-driven time-domain waveform from the recorder's AnalyserNode
     audio/VoiceCalibration.tsx כיול קול flow: intro → 3 words → result → save VoiceProfile
     audio/VerseRecorder.tsx    record the verse → engine evaluation → WordFeedback (+ Phase 1 pitch metrics)
-    audio/WordFeedback.tsx     coloured words (green/amber/red), tap-to-play segment, detail panel
+    audio/WordFeedback.tsx     coloured words + ♪ accent badge, tap-to-play, combined two-score detail
+    audio/ContourSparkline.tsx user pitch contour (gold) over the accent template (dashed)
     ScriptureNav.tsx     header trigger + bottom sheet: quick search, Book → Chapter/Parasha → Verse
     BottomSheet.tsx      mobile-first modal (slide-up, safe-area aware, Escape/backdrop close)
     TaamWord.tsx         ★ single word touch target with context-aware validation
@@ -94,6 +95,9 @@ src/
     speech/align.ts      DP/DTW alignment of expected syllables to nuclei (tempo-scaled boundary cue)
     speech/boundaries.ts word playback boundaries from gaps / energy valleys, non-overlapping
     speech/friendly.ts   learner-facing Hebrew respelling + "letter = sound" pronunciation hints
+    speech/accent-templates.ts ★ expected Temani pitch shape per accent (EDIT WITH A DOMAIN EXPERT)
+    speech/contour.ts    cantillation contour matcher: region → semitone contour → DTW score 0–100
+    speech/api-contract.ts     POST /api/align request/response types (contract v1) + validator
     speech/engine.ts     ★ PronunciationEngine interface, LocalRhythmEngine, RemoteEngine, getEngine()
     speech/synth.ts      verse-shaped audio synthesiser for fixtures (ground-truth boundaries)
 data/
@@ -474,7 +478,7 @@ and a parasha (בראשית, שמות, במדבר, דברים, שופטים) res
 ## 14. Voice recording & Temani cantillation assessment (Phase 1 of 3 — done)
 
 Roadmap: **1 capture + calibration (this)** → **2 word alignment + pronunciation engine (§15,
-done)** → 3 evaluation of pitch contours against expected Yemenite patterns.
+done)** → **3 cantillation contour scoring + remote contract (§16, done)**.
 Everything is client-side; nothing is uploaded. All audio code lives under `src/lib/audio`
 (no React except the hook and the profile hook) and `src/components/audio`.
 
@@ -617,3 +621,62 @@ few WAVs under `src/lib/speech/__fixtures__/` when available and tune `LOCAL_THR
 word; expected Temani contour templates per accent can be compared with DTW in semitone space
 relative to `profile.baselineF0`. Consider an AudioWorklet capture path if per-word timing needs
 to be sample-accurate, and a worker if 90 s analyses stall the UI.
+
+## 16. Phase 3 — cantillation accent analysis & the remote alignment contract
+
+**Contour matcher (`speech/contour.ts`, `speech/accent-templates.ts`).** For every word whose
+governing mark has a template: region = accented syllable onset (from `syllableSpans`, using the
+Temani stress index) → word end; whole word if the stressed syllable was not located.
+`extractContour` takes the voiced F0 frames in the region and expresses them in semitones
+relative to the region's opening pitch (median of its first fifth — absolute pitch and the
+speaker's baseline do not matter, only the movement). `resampleContour` → 16 points over [0, 1].
+`scoreContour` = 0.5 · shape + 0.3 · magnitude + 0.2 · direction, as 0–100:
+shape = 1 − DTW(mean semitone distance, band 3) ÷ template tolerance; magnitude = closeness of the
+user's range to the template's `movement` (log ratio, 3× off = 0); direction = sign of the
+largest excursion from the opening pitch (a zaqef goes UP and returns, an etnahta DOWN —
+end-vs-start would call both "flat"). Verdicts (`ACCENT_THRESHOLDS`): good ≥ 70, partial ≥ 40,
+else off; `unvoiced` when < 4 voiced frames. Words without a template (conjunctives) get
+`accent: null` and the UI says "מילה מחברת".
+
+**Templates are placeholders.** `ACCENT_TEMPLATES` holds one stylised shape per accent, read off
+the accents' textbook descriptions (zaqef rises and returns; etnahta rests downward; segolta
+rolls; shalshelet chains; pashta extends upward; tevir breaks down-and-up; …) with a movement
+range and tolerance. **This file is the single thing a Temani expert should edit**; the matcher
+and every score follow it. Real recordings of a reader per accent should become fixtures and the
+shapes fitted to them (the engine test with `pitch: "accent"` shows how a template-shaped melody
+scores ≥ 70 and flat/inverted ones lower).
+
+**Engine changes (`speech/engine.ts`).** `WordResult` gained `syllableSpans`, `phones` and
+`accent`; the summary gained `accentScore` (mean over analysed words), `accentGood`,
+`accentAnalysed`. `analyzeAccents()` runs after alignment in both engines.
+
+**Remote contract (`speech/api-contract.ts`) — `POST {base}/api/align`, contract v1.**
+Request `AlignRequest { contractVersion: 1, tradition, verse{ref,text}, expected[{index, display,
+pointed, ipa, roman, syllables[{index, ipa, stressed, weight}], markId, disjunctive}], profile,
+audio{mimeType, durationMs, base64} }` — the Temani expectations travel with the request, so the
+server needs no Hebrew rules. Response `AlignResponse { contractVersion: 1, engine, words[{index,
+start|null, end|null, syllables[{index,start,end}], phones[{phone,start,end,score?}],
+phonetic?{score,issues[]}}], warnings? }`. `isAlignResponse` validates version + shape.
+`RemoteEngine` maps it with `fromAlignResponse`: **the server's boundaries replace the local
+ones** (status = missing when `start` is null, minor when syllables are short or phonetic score
+< 0.6, else correct); pitch metrics and accent contours are then computed locally on those
+precise timestamps (the client decodes the same blob). `FallbackEngine` (what `getEngine()`
+returns when `NEXT_PUBLIC_ALIGNMENT_API` / `localStorage["medaker.alignmentApi"]` is set) tries
+remote and, on HTTP errors, network failures or malformed bodies, answers with the local engine
+and sets `fallbackFrom { engine: "remote", reason }` — the UI shows a notice. A reference fake
+aligner lives in `engine.test.ts` (answers with fixture ground truth split into syllables and
+phones): use it as the behavioural spec when implementing the server.
+
+**UI.** Each word with an analysed accent wears a ♪ badge at its corner (green good / amber
+partial / red off / grey unvoiced; tooltip = accent name + score). The detail panel shows two
+scores side by side: **הגייה וקצב** (`rhythmScoreOf`: 0.4 · syllable share + 0.3 · rhythm +
+0.3 · phonetic, phonetic = 1 without a server) and **טעם וניגון** (the accent score) with a
+sparkline of the user's contour (gold) over the template (dashed) and the template's Hebrew
+description. The summary line shows the mean accent score and "N מתוך M טעמים בניגון הנכון".
+
+**Tests.** `contour.test.ts`: template coverage; resampling; DTW; every major accent's own shape
+(with jitter) scores good; inverted → off; flat monotone → low; zaqef vs. etnahta discrimination;
+pitch invariance; magnitude penalty; unvoiced; no-template. `engine.test.ts`: synthesizer
+`pitch: "accent" | "flat" | "inverted"` end-to-end (good ≥ 70, flat/inverted lower, conjunctives
+untouched), region/contour exposure, the `/api/align` contract with a fake aligner (boundaries
+adopted, phones, phonetic → minor, omitted → missing), version/shape rejection, fallback.
