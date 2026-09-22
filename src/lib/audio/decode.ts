@@ -3,6 +3,7 @@
  * callback form of decodeAudioData is used for older Safari.
  */
 import { toMono } from "./pitch";
+import { decodeWav, isWavBlob } from "./wav";
 
 export interface DecodedAudio {
   samples: Float32Array;
@@ -11,6 +12,11 @@ export interface DecodedAudio {
 }
 
 export async function decodeBlob(blob: Blob): Promise<DecodedAudio> {
+  // WAV decodes without Web Audio — lets fixtures and tests run in Node.
+  if (isWavBlob(blob)) {
+    const { samples, sampleRate } = decodeWav(await blob.arrayBuffer());
+    return { samples, sampleRate, durationMs: Math.round((samples.length / sampleRate) * 1000) };
+  }
   const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
   const ctx = new Ctx();
   try {

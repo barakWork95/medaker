@@ -42,7 +42,8 @@ src/
     audio/AudioRecorder.tsx    mic/stop control + live WaveformCanvas + <audio> playback (presentation only)
     audio/WaveformCanvas.tsx   rAF-driven time-domain waveform from the recorder's AnalyserNode
     audio/VoiceCalibration.tsx כיול קול flow: intro → 3 words → result → save VoiceProfile
-    audio/VerseRecorder.tsx    record the current verse + basic pitch metrics vs. the profile (Phase 1)
+    audio/VerseRecorder.tsx    record the verse → engine evaluation → WordFeedback (+ Phase 1 pitch metrics)
+    audio/WordFeedback.tsx     coloured words (green/amber/red), tap-to-play segment, detail panel
     ScriptureNav.tsx     header trigger + bottom sheet: quick search, Book → Chapter/Parasha → Verse
     BottomSheet.tsx      mobile-first modal (slide-up, safe-area aware, Escape/backdrop close)
     TaamWord.tsx         ★ single word touch target with context-aware validation
@@ -85,6 +86,14 @@ src/
     audio/analyze.ts     analyzeRecording(): decode → track → summary
     audio/voice-profile.ts     VoiceProfile type, computeVoiceProfile(), localStorage store + hook
     audio/calibration-words.ts the 3 calibration words (אתנחתא / זקף קטון / סגולתא) + guidance text
+    audio/wav.ts         PCM WAV encode/decode (fixtures; decodeBlob handles audio/wav without Web Audio)
+    audio/segment-player.ts    Web Audio playback of a PCM range (webm blobs cannot seek)
+    speech/temani-phonetics.ts ★ pointed word → Temani phonemes/syllables/stress (transcribeTemani/Token)
+    speech/expected.ts   verse → ExpectedWord[] (tokens + syllables + duration weights)
+    speech/nuclei.ts     syllable-nucleus detection from the pitch/energy track
+    speech/align.ts      DP/DTW alignment of expected syllables to nuclei (with word-boundary cue)
+    speech/engine.ts     ★ PronunciationEngine interface, LocalRhythmEngine, RemoteEngine, getEngine()
+    speech/synth.ts      verse-shaped audio synthesiser for fixtures (ground-truth boundaries)
 data/
   taamim-mapping.xlsx    the user's "טעמי המקרא-Medaker.xlsx" — SOURCE OF TRUTH for the mapping
 .github/workflows/deploy.yml  CI (lint/typecheck/test) + static export + GitHub Pages deploy on push to main
@@ -462,8 +471,8 @@ and a parasha (בראשית, שמות, במדבר, דברים, שופטים) res
 
 ## 14. Voice recording & Temani cantillation assessment (Phase 1 of 3 — done)
 
-Roadmap: **1 capture + calibration (this)** → 2 verse recording model (per-word alignment,
-pitch contour extraction per accent) → 3 evaluation against expected Yemenite patterns.
+Roadmap: **1 capture + calibration (this)** → **2 word alignment + pronunciation engine (§15,
+done)** → 3 evaluation of pitch contours against expected Yemenite patterns.
 Everything is client-side; nothing is uploaded. All audio code lives under `src/lib/audio`
 (no React except the hook and the profile hook) and `src/components/audio`.
 
@@ -519,3 +528,69 @@ tracker (steady tones, 48 kHz input, silence, noise, glides, gating) and the pro
 **Phase 2 pointers.** Keep `PitchFrame[]` (time-stamped) — per-word alignment will slice it.
 Consider recording PCM straight from an `AudioWorklet` when Phase 2 needs sample-accurate
 timing, and an `OfflineAudioContext`/worker if analysis of 90 s takes ever stalls the UI.
+
+## 15. Phase 2 — speech alignment & pronunciation engine (זיהוי קריאה והגייה)
+
+**What it can and cannot do.** The app is static: no acoustic model runs in the browser, so the
+built-in `LocalRhythmEngine` judges *what it can hear without recognising phonemes* — which
+syllables/words were voiced, when, how long, and how the pitch moved. It cannot tell ו→w from
+ו→v. Phoneme-level scoring is defined in the interface and delivered by a server engine
+(`RemoteEngine`) when one is configured. The UI always says which engine ran and that
+"הגייה דורש מנוע שרת" when the local one did.
+
+**Expected side (`speech/temani-phonetics.ts`, `speech/expected.ts`).** `transcribeTemani(word)`
+→ `{ syllables[{phonemes, vowel, stressed}], ipa, roman, stressIndex }` with the Sanʿani rules
+(ו w · ק g · ג ǧ/ġ · ד d/ḏ · ת t/ṯ · ב b/v · כ k/ḵ · פ p/f · ח ḥ · ע ʿ · ט ṭ · צ ṣ; segol = patah = a,
+qamats = å, holam = ö, hataf-segol = a; shva na word-initially / after a shva / under dagesh
+forte / after meteg; dagesh forte geminates, BGDKPT after a closed syllable is lene; silent
+mater yod after i/e; furtive patah; stress from the impositive cantillation mark, pre/post-positive
+marks → milra, doubled pashta → first pashta). `transcribeToken` splits maqaf groups and drops
+paseq/sof pasuq. `buildExpectedWords(text)` reuses `tokenizeVerse` (so context rules mark
+disjunctives) and assigns duration weights: plain 1 · stressed 1.35 · final syllable of a
+disjunctive word 1.6 · pause after word 0.15 / after disjunctive 0.6. **These rules are a
+documented approximation — refine with a domain expert; tests pin every rule.**
+
+**Local engine pipeline (`speech/nuclei.ts`, `speech/align.ts`, `speech/engine.ts`).**
+decode → `estimatePitchTrack` (10 ms frames: RMS + F0) → `detectNuclei` (smoothed energy,
+silence < 8 % of max, runs bridged over ≤ 40 ms gaps, peaks ≥ 25 % of run max, merged when
+< 80 ms apart or with no valley below 70 %) → `alignSyllables` (edit-distance DP: match cost =
+timing drift × 3 + |log duration ratio| × 0.5 + boundary cue; omit 1.0; insert 0.6; the boundary
+cue penalises same-word syllables split by a ≥ 80 ms gap and word boundaries with < 40 ms gap)
+→ per word: `start/end` from its matched nuclei, `syllablesMatched`, `rhythmDeviation` =
+|log(actual ÷ expected)| of nucleus seconds per weight against the reading's median tempo (robust
+to one stretched word), `pitchMovementSemitones` (p90/p10 inside the word),
+`pitchVsBaselineSemitones` (median vs. `VoiceProfile.baselineF0` — the Phase 1 link).
+Status: `missing` < 34 % syllables · `correct` = all syllables and rhythm deviation < 0.5 (≈ 65 %)
+· otherwise `minor`. Score = (correct + 0.5·minor) / words. Thresholds in `LOCAL_THRESHOLDS`.
+
+**Engine interface & server contract.** `PronunciationEngine { id, capabilities{phonetic,
+timestamps}, evaluate(EvaluationRequest) → VerseEvaluation }`. `getEngine()` returns
+`RemoteEngine` when `NEXT_PUBLIC_ALIGNMENT_API` (build time) or `localStorage["medaker.alignmentApi"]`
+(device override for testing) is set, else the local engine.
+Wire format: `POST {base}/evaluate` with JSON `RemoteEvaluationBody { tradition, verse{ref,text},
+expected[{index, display, pointed, ipa, roman, syllables[]}], profile, audio{mimeType, durationMs,
+base64} }` → `VerseEvaluation` (same shape the UI renders; `words[].phonetic = { score 0..1,
+issues[] }` is where a forced aligner / GOP model reports ו/ק/ג/ת deviations). Any aligner
+(e.g. MFA or a wav2vec2-CTC service) can implement it; the Temani expectations travel with the
+request so the server needs no Hebrew rules of its own.
+
+**UI (`WordFeedback.tsx`, `VerseRecorder.tsx`).** After "ניתוח הקריאה" the sheet swaps the verse
+for the coloured result: green = correct, amber = minor (syllables swallowed / rhythm), red +
+strike-through = missing. Tapping a word plays its segment through `SegmentPlayer` (Web Audio on
+the decoded PCM — MediaRecorder webm cannot seek) and opens a detail panel (syllables, time,
+rhythm, pitch movement, Δ vs. baseline, notes). Full playback and "הקלטה חדשה" sit below.
+
+**Fixtures & tests.** `speech/synth.ts` turns ExpectedWords into verse-shaped audio (one
+harmonic burst per syllable, gaps between words, stressed syllables +12 % pitch) and returns the
+ground-truth boundaries; `engine.test.ts` wraps it in a real `audio/wav` Blob (`audio/wav.ts`) and
+runs the whole engine: clean reading → 7/7 correct with boundaries within 60 ms; omitted word →
+missing, neighbours intact; swallowed syllable → minor 3/4; stretched word → minor "ארוכה מהצפוי";
+extra hesitation → tolerated; faster tempo → tolerated; silence → all missing; baseline Δ;
+remote contract + error handling. Real phone recordings are still missing as fixtures — add a
+few WAVs under `src/lib/speech/__fixtures__/` when available and tune `LOCAL_THRESHOLDS` /
+`detectNuclei` options against them.
+
+**Phase 3 pointers.** `VerseEvaluation.track` + per-word `start/end` give the F0 contour per
+word; expected Temani contour templates per accent can be compared with DTW in semitone space
+relative to `profile.baselineF0`. Consider an AudioWorklet capture path if per-word timing needs
+to be sample-accurate, and a worker if 90 s analyses stall the UI.
