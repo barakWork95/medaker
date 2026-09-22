@@ -109,7 +109,7 @@ const SHVA_NA: [string, string] = ["ə", "ə"];
 const NON_STRESS_MARKS = new Set([0x0599, 0x0592, 0x05a9, 0x05a0, 0x05ae, 0x059a, 0x05ad]);
 const PASHTA = 0x0599;
 
-interface LetterUnit {
+export interface LetterUnit {
   letter: string; // regular form
   isFinal: boolean;
   dagesh: boolean;
@@ -122,6 +122,11 @@ interface LetterUnit {
   marks: number[];
   offset: number;
   vowelOffset: number;
+}
+
+/** Letters with their pointing, in order (public for friendly.ts). */
+export function letterUnits(pointed: string): LetterUnit[] {
+  return parseUnits(pointed.normalize("NFD").replace(/[\u034F\u200C-\u200F]/g, ""));
 }
 
 function parseUnits(nfd: string): LetterUnit[] {

@@ -16,9 +16,10 @@ import { estimatePitchTrack, percentile, type PitchFrame } from "@/lib/audio/pit
 import type { Recording } from "@/lib/audio/recorder";
 import type { VoiceProfile } from "@/lib/audio/voice-profile";
 import type { VerseRef } from "@/lib/scripture";
-import { alignSyllables } from "./align";
+import { alignOptionsForTempo, alignSyllables } from "./align";
+import { refineBoundaries, spansFromMatches } from "./boundaries";
 import { buildExpectedWords, type ExpectedWord } from "./expected";
-import { detectNuclei, type Nucleus } from "./nuclei";
+import { analyzeNuclei, type Nucleus, type SilenceGap } from "./nuclei";
 
 export type Tradition = "temani";
 export type WordStatus = "correct" | "minor" | "missing";
@@ -80,6 +81,9 @@ export interface VerseEvaluation {
   /** Local engine only — for the debug view / Phase 3. */
   track?: PitchFrame[];
   nuclei?: Nucleus[];
+  gaps?: SilenceGap[];
+  /** Median syllable interval of the reading (s). */
+  syllableIntervalS?: number;
 }
 
 export interface PronunciationEngine {
@@ -119,9 +123,19 @@ export function evaluateLocally(
   track: PitchFrame[],
   profile: VoiceProfile | null,
 ): Omit<VerseEvaluation, "engine" | "tradition"> {
-  const nuclei = detectNuclei(track);
+  const analysis = analyzeNuclei(track);
+  const { nuclei, gaps, syllableIntervalS } = analysis;
+  const durationS = track.length ? track[track.length - 1].t : 0;
   const syllables = expected.flatMap((w) => w.syllables);
-  const alignment = alignSyllables(syllables, nuclei);
+  const alignment = alignSyllables(syllables, nuclei, alignOptionsForTempo(syllableIntervalS));
+
+  // refined, non-overlapping playback boundaries per word
+  const perWord = new Map<number, Nucleus[]>();
+  for (const m of alignment.matches) {
+    const wi = syllables[m.syllable].wordIndex;
+    perWord.set(wi, [...(perWord.get(wi) ?? []), nuclei[m.nucleus]]);
+  }
+  const refined = new Map(refineBoundaries(spansFromMatches(perWord), track, analysis.rms, gaps, durationS).map((b) => [b.index, b]));
   // global tempo: seconds of nucleus per weight unit (median → robust to one odd word)
   const rates = alignment.matches.map((m) => (nuclei[m.nucleus].end - nuclei[m.nucleus].start) / syllables[m.syllable].weight);
   const tempo = percentile(rates, 0.5);
@@ -129,8 +143,9 @@ export function evaluateLocally(
   const words: WordResult[] = expected.map((w) => {
     const mine = alignment.matches.filter((m) => syllables[m.syllable].wordIndex === w.index);
     const matchedNuclei = mine.map((m) => nuclei[m.nucleus]);
-    const start = matchedNuclei.length ? Math.min(...matchedNuclei.map((nu) => nu.start)) : null;
-    const end = matchedNuclei.length ? Math.max(...matchedNuclei.map((nu) => nu.end)) : null;
+    const bounds = refined.get(w.index);
+    const start = bounds ? bounds.start : null;
+    const end = bounds ? bounds.end : null;
 
     let rhythmDeviation: number | null = null;
     let tooLong = false;
@@ -195,6 +210,8 @@ export function evaluateLocally(
     },
     track,
     nuclei,
+    gaps,
+    syllableIntervalS,
   };
 }
 

@@ -5,7 +5,7 @@ import { computeVoiceProfile } from "@/lib/audio/voice-profile";
 import { alignSyllables } from "./align";
 import { LocalRhythmEngine, RemoteEngine, evaluateLocally, getRemoteApiUrl, statusFor, type EvaluationRequest, type VerseEvaluation } from "./engine";
 import { buildExpectedWords } from "./expected";
-import { detectNuclei } from "./nuclei";
+import { analyzeNuclei, detectNuclei } from "./nuclei";
 import { synthesizeVerse, type SynthOptions } from "./synth";
 
 const GEN_1_1 = "בְּרֵאשִׁ֖ית בָּרָ֣א אֱלֹהִ֑ים אֵ֥ת הַשָּׁמַ֖יִם וְאֵ֥ת הָאָֽרֶץ׃";
@@ -161,5 +161,75 @@ describe("RemoteEngine", () => {
 
   it("is only selected when a URL is configured", () => {
     expect(getRemoteApiUrl()).toBeNull();
+  });
+});
+
+/* ---------------- boundary accuracy (Phase 2 feedback) ---------------- */
+
+const GEN_1_2 = "וְהָאָ֗רֶץ הָיְתָ֥ה תֹ֙הוּ֙ וָבֹ֔הוּ וְחֹ֖שֶׁךְ עַל־פְּנֵ֣י תְה֑וֹם וְר֣וּחַ אֱלֹהִ֔ים מְרַחֶ֖פֶת עַל־פְּנֵ֥י הַמָּֽיִם׃";
+
+/** Every word segment must contain all of its own nucleus peaks and none of another word's. */
+function assertNoLeaks(result: VerseEvaluation, synth: ReturnType<typeof synthesizeVerse>) {
+  const peaks = result.nuclei ?? [];
+  for (const b of synth.boundaries) {
+    const w = result.words[b.index];
+    expect(w.start).not.toBeNull();
+    const inside = peaks.filter((p) => p.t >= (w.start as number) && p.t <= (w.end as number));
+    const own = peaks.filter((p) => p.t >= b.start && p.t <= b.end);
+    expect(inside.length).toBe(own.length);
+    for (const p of inside) expect(p.t >= b.start - 0.001 && p.t <= b.end + 0.001).toBe(true);
+  }
+  // segments never overlap
+  const spans = result.words.filter((w) => w.start !== null).sort((a, b) => (a.start as number) - (b.start as number));
+  for (let i = 1; i < spans.length; i++) expect(spans[i].start as number).toBeGreaterThanOrEqual(spans[i - 1].end as number);
+}
+
+function boundaryErrors(result: VerseEvaluation, synth: ReturnType<typeof synthesizeVerse>) {
+  return synth.boundaries.map((b) => {
+    const w = result.words[b.index];
+    return Math.max(Math.abs((w.start as number) - b.start), Math.abs((w.end as number) - b.end));
+  });
+}
+
+describe("word boundary accuracy", () => {
+  const cases: [string, string, SynthOptions][] = [
+    ["clean, default tempo", GEN_1_1, {}],
+    ["connected speech with a noise floor (no gaps inside words, 60 ms between words)", GEN_1_2, { gapMs: 0, wordGapMs: 60, noiseFloor: 0.02, amplitudeJitter: 0.35, seed: 5 }],
+    ["fast reader", GEN_1_2, { unitMs: 90, gapMs: 0, wordGapMs: 45, noiseFloor: 0.015, amplitudeJitter: 0.3, seed: 9 }],
+    ["slow reader", GEN_1_1, { unitMs: 280, gapMs: 20, wordGapMs: 220, noiseFloor: 0.02, amplitudeJitter: 0.3, seed: 3 }],
+    ["quiet recording", GEN_1_3, { gapMs: 0, wordGapMs: 70, noiseFloor: 0.004, amplitudeJitter: 0.4, seed: 11 }],
+  ];
+  for (const [name, text, options] of cases) {
+    it(`${name}: every boundary within 50 ms, no leaks, no overlaps`, async () => {
+      const { request, synth } = fixture(text, options);
+      const result = await new LocalRhythmEngine().evaluate(request);
+      expect(result.summary.missing).toBe(0);
+      const errors = boundaryErrors(result, synth);
+      expect(Math.max(...errors)).toBeLessThan(0.05);
+      assertNoLeaks(result, synth);
+    });
+  }
+
+  it("scales its timing constants to the reader's tempo", async () => {
+    const fast = fixture(GEN_1_2, { unitMs: 90, gapMs: 0, wordGapMs: 45, seed: 2 });
+    const slow = fixture(GEN_1_2, { unitMs: 280, gapMs: 20, wordGapMs: 220, seed: 2 });
+    const a = analyzeNuclei(estimatePitchTrack(fast.synth.samples, fast.synth.sampleRate));
+    const b = analyzeNuclei(estimatePitchTrack(slow.synth.samples, slow.synth.sampleRate));
+    expect(a.syllableIntervalS).toBeLessThan(0.16);
+    expect(b.syllableIntervalS).toBeGreaterThan(0.3);
+    const n = fast.expected.flatMap((w) => w.syllables).length;
+    expect(a.nuclei.length).toBe(n);
+    expect(b.nuclei.length).toBe(n);
+    // word gaps are found as silence gaps in both readings
+    expect(a.gaps.length).toBeGreaterThanOrEqual(fast.expected.length - 1);
+    expect(b.gaps.length).toBeGreaterThanOrEqual(slow.expected.length - 1);
+  });
+
+  it("derives the silence level from the noise floor, not the global peak", async () => {
+    const { synth } = fixture(GEN_1_3, { noiseFloor: 0.03, gapMs: 0, wordGapMs: 60, seed: 4 });
+    const a = analyzeNuclei(estimatePitchTrack(synth.samples, synth.sampleRate));
+    expect(a.noiseFloor).toBeGreaterThan(0);
+    expect(a.silenceLevel).toBeGreaterThan(a.noiseFloor);
+    expect(a.nuclei.length).toBe(buildExpectedWords(GEN_1_3).flatMap((w) => w.syllables).length);
   });
 });

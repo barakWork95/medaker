@@ -39,6 +39,12 @@ export interface AlignOptions {
   syllableGapS?: number;
 }
 
+/** Tempo-scaled gap thresholds for the boundary cue (syllableIntervalS = median peak interval). */
+export function alignOptionsForTempo(syllableIntervalS: number): Pick<Required<AlignOptions>, "wordGapS" | "syllableGapS"> {
+  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+  return { wordGapS: clamp(0.35 * syllableIntervalS, 0.05, 0.18), syllableGapS: clamp(0.12 * syllableIntervalS, 0.015, 0.06) };
+}
+
 const D: Required<AlignOptions> = {
   omitCost: 1.0,
   insertCost: 0.6,

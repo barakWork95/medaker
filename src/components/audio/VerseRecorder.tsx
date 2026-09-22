@@ -114,9 +114,6 @@ export function VerseRecorder({
         {evaluation ? (
           <>
             <WordFeedback evaluation={evaluation} playing={playing} onPlayWord={playWord} />
-            <p className="text-[11px] text-parchment/40">
-              מנוע: {evaluation.engine === "remote" ? "שרת יישור (הגייה + זמנים)" : "מקומי — קצב, הברות וגובה בלבד; בדיקת הגייה תימנית דורשת מנוע שרת"}
-            </p>
             {recorder.recording && (
               <audio controls src={recorder.recording.url} className="w-full" preload="metadata" data-testid="playback-full">
                 <track kind="captions" />

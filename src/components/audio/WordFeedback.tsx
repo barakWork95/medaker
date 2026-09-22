@@ -4,8 +4,9 @@
  * Word-level evaluation view: the verse as coloured words (green / amber / red), tap a word to
  * hear that segment, expand for details (syllables, rhythm, pitch, notes).
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { VerseEvaluation, WordResult, WordStatus } from "@/lib/speech/engine";
+import { friendlyToken } from "@/lib/speech/friendly";
 
 const STATUS: Record<WordStatus, { labelHe: string; className: string; dot: string }> = {
   correct: { labelHe: "נכון", className: "bg-correct/25 text-ink ring-correct/60", dot: "bg-correct" },
@@ -24,8 +25,11 @@ export function WordFeedback({
   onPlayWord: (word: WordResult) => void;
 }) {
   const [selected, setSelected] = useState<number | null>(null);
+  const [openHint, setOpenHint] = useState<string | null>(null);
   const sel = selected !== null ? evaluation.words[selected] : null;
+  const friendly = useMemo(() => (sel ? friendlyToken(sel.pointed) : null), [sel]);
   const { summary } = evaluation;
+  const local = evaluation.engine === "local-rhythm";
 
   return (
     <div className="flex flex-col gap-3" data-testid="word-feedback" data-engine={evaluation.engine}>
@@ -73,14 +77,51 @@ export function WordFeedback({
         <li className="text-parchment/50">· הקשה על מילה משמיעה את הקטע</li>
       </ul>
 
-      {sel && (
+      <p
+        className={`rounded-lg px-3 py-2 text-xs leading-relaxed ${local ? "border border-gold/40 bg-gold/10 text-parchment/90" : "border border-correct/40 bg-correct/10 text-parchment/90"}`}
+        data-testid="engine-note"
+      >
+        {local ? (
+          <>
+            <strong className="text-gold">ניתוח מקומי (במכשיר):</strong> בודק אילו מילים והברות נקראו, את הקצב ואת תנועת הגובה.{" "}
+            <strong>אינו בודק הגייה</strong> — האם ו נשמעה W, ק נשמעה G וכדומה. בדיקת הגייה תימנית מלאה מתבצעת רק עם מנוע היישור בשרת.
+          </>
+        ) : (
+          <>
+            <strong className="text-correct">מנוע שרת:</strong> יישור מלא — זמנים, הברות והתאמה פונטית להגייה התימנית.
+          </>
+        )}
+      </p>
+
+      {sel && friendly && (
         <div className="rounded-lg border border-navy-700 bg-navy p-3 text-sm" data-testid="word-detail">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="font-stam text-xl font-bold text-parchment">{sel.pointed}</span>
-            <span className="font-mono text-xs text-parchment/60" dir="ltr">
-              {sel.roman}
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <span className="font-stam text-2xl font-bold text-parchment" data-testid="respelled">
+              {friendly.respelled}
+              {friendly.changed && <span className="ms-2 text-base font-normal text-parchment/50">({friendly.pointed})</span>}
             </span>
+            <span className="text-xs text-parchment/50">{friendly.changed ? "כך זה נשמע בהגייה התימנית" : "נקרא כפי שכתוב"}</span>
           </div>
+
+          {friendly.hints.length > 0 && (
+            <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="כללי הגייה למילה" data-testid="hint-chips">
+              {friendly.hints.map((h) => (
+                <li key={h.id}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenHint(openHint === h.id ? null : h.id)}
+                    title={h.detail}
+                    aria-expanded={openHint === h.id}
+                    className={`rounded-full border px-2 py-0.5 text-xs ${openHint === h.id ? "border-gold bg-gold/20 text-gold" : "border-navy-700 text-parchment/80 hover:border-gold/60"}`}
+                    dir="rtl"
+                  >
+                    {h.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {openHint && <p className="mt-1 text-xs text-gold/90">{friendly.hints.find((h) => h.id === openHint)?.detail}</p>}
           <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
             <dt className="text-parchment/60">מצב</dt>
             <dd>{STATUS[sel.status].labelHe}</dd>
@@ -109,8 +150,8 @@ export function WordFeedback({
                 </dd>
               </>
             )}
-            <dt className="text-parchment/60">הגייה</dt>
-            <dd className="text-end">{sel.phonetic ? `${Math.round(sel.phonetic.score * 100)}%` : "דורש מנוע שרת"}</dd>
+            <dt className="text-parchment/60">התאמה פונטית</dt>
+            <dd className="text-end">{sel.phonetic ? `${Math.round(sel.phonetic.score * 100)}%` : "לא נבדקה (מנוע מקומי)"}</dd>
           </dl>
           {(sel.notes.length > 0 || sel.phonetic?.issues.length) && (
             <ul className="mt-2 list-disc ps-4 text-xs text-parchment/80">

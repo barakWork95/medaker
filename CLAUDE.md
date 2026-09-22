@@ -90,8 +90,10 @@ src/
     audio/segment-player.ts    Web Audio playback of a PCM range (webm blobs cannot seek)
     speech/temani-phonetics.ts ★ pointed word → Temani phonemes/syllables/stress (transcribeTemani/Token)
     speech/expected.ts   verse → ExpectedWord[] (tokens + syllables + duration weights)
-    speech/nuclei.ts     syllable-nucleus detection from the pitch/energy track
-    speech/align.ts      DP/DTW alignment of expected syllables to nuclei (with word-boundary cue)
+    speech/nuclei.ts     adaptive, tempo-scaled nucleus + silence-gap detection (analyzeNuclei)
+    speech/align.ts      DP/DTW alignment of expected syllables to nuclei (tempo-scaled boundary cue)
+    speech/boundaries.ts word playback boundaries from gaps / energy valleys, non-overlapping
+    speech/friendly.ts   learner-facing Hebrew respelling + "letter = sound" pronunciation hints
     speech/engine.ts     ★ PronunciationEngine interface, LocalRhythmEngine, RemoteEngine, getEngine()
     speech/synth.ts      verse-shaped audio synthesiser for fixtures (ground-truth boundaries)
 data/
@@ -550,13 +552,22 @@ disjunctives) and assigns duration weights: plain 1 · stressed 1.35 · final sy
 disjunctive word 1.6 · pause after word 0.15 / after disjunctive 0.6. **These rules are a
 documented approximation — refine with a domain expert; tests pin every rule.**
 
-**Local engine pipeline (`speech/nuclei.ts`, `speech/align.ts`, `speech/engine.ts`).**
-decode → `estimatePitchTrack` (10 ms frames: RMS + F0) → `detectNuclei` (smoothed energy,
-silence < 8 % of max, runs bridged over ≤ 40 ms gaps, peaks ≥ 25 % of run max, merged when
-< 80 ms apart or with no valley below 70 %) → `alignSyllables` (edit-distance DP: match cost =
+**Local engine pipeline (`speech/nuclei.ts`, `speech/align.ts`, `speech/boundaries.ts`,
+`speech/engine.ts`).** decode → `estimatePitchTrack` (10 ms frames: F0, 64 ms RMS and a 20 ms
+`rmsShort` energy envelope sharp enough for 90 ms syllables) → `analyzeNuclei`:
+*adaptive silence* = noise floor (p10 of energy) + 12 % of (p90 − p10), never the global peak;
+*two passes*: pass 1 with a default 200 ms syllable finds peaks → median peak interval = the
+reader's tempo → pass 2 rescales smoothing (≈ ¼ syllable, 3–7 frames), gap bridging (25 %,
+30–80 ms), minimum peak separation (45 %, 60–160 ms) and the minimum silence gap (20 %,
+40–120 ms) to that tempo; peaks ≥ 25 % of run max, merged without a valley below 70 %. Output:
+nuclei, silence gaps, `syllableIntervalS`, smoothed energy → `alignSyllables` (edit-distance DP:
 timing drift × 3 + |log duration ratio| × 0.5 + boundary cue; omit 1.0; insert 0.6; the boundary
-cue penalises same-word syllables split by a ≥ 80 ms gap and word boundaries with < 40 ms gap)
-→ per word: `start/end` from its matched nuclei, `syllablesMatched`, `rhythmDeviation` =
+cue's gap thresholds come from `alignOptionsForTempo`: word gap = 35 % of a syllable (50–180 ms),
+same-word gap = 12 % (15–60 ms)) → `refineBoundaries`: a word's playable segment starts at the end
+of the last silence gap between the previous word's last peak and its own first peak (else at the
+energy valley between the two peaks, else at its energy onset) and ends symmetrically; ±20 ms
+padding, then consecutive segments are clipped at their midpoint so they never overlap or leak a
+neighbour's syllable → per word: `start/end`, `syllablesMatched`, `rhythmDeviation` =
 |log(actual ÷ expected)| of nucleus seconds per weight against the reading's median tempo (robust
 to one stretched word), `pitchMovementSemitones` (p90/p10 inside the word),
 `pitchVsBaselineSemitones` (median vs. `VoiceProfile.baselineF0` — the Phase 1 link).
@@ -576,14 +587,26 @@ request so the server needs no Hebrew rules of its own.
 
 **UI (`WordFeedback.tsx`, `VerseRecorder.tsx`).** After "ניתוח הקריאה" the sheet swaps the verse
 for the coloured result: green = correct, amber = minor (syllables swallowed / rhythm), red +
-strike-through = missing. Tapping a word plays its segment through `SegmentPlayer` (Web Audio on
-the decoded PCM — MediaRecorder webm cannot seek) and opens a detail panel (syllables, time,
-rhythm, pitch movement, Δ vs. baseline, notes). Full playback and "הקלטה חדשה" sit below.
+strike-through = missing. A visible engine note states what the local engine checks (words,
+syllables, rhythm, pitch movement) and that it does **not** check pronunciation (ו→W, ק→G…), which
+needs the server engine. Tapping a word plays its segment through `SegmentPlayer` (Web Audio on
+the decoded PCM — MediaRecorder webm cannot seek) and opens a detail panel. The panel shows the
+**friendly Temani reading** from `speech/friendly.ts` instead of academic romanisation: the word
+re-pointed so an Israeli reader says it the Temani way (qamats → holam "O", segol/hataf-segol →
+patah "A"; original in parentheses when it differs) plus "letter = sound" chips for the rules that
+apply to that word (ו = W, ק = G, גּ = J, ג = GH, ת = TH, ד = DH, כ = KH, ח = Ḥ, ע = ʿ, ט = Ṭ,
+צ = Ṣ, קמץ = O, סגול = A, חולם = Ö, שווא נע = E קצר) — tap a chip for the explanation. Holam-male
+and shuruq ו are vowels and get no W chip. The academic `roman`/`ipa` stay in the data for the
+server contract. Full playback and "הקלטה חדשה" sit below.
 
 **Fixtures & tests.** `speech/synth.ts` turns ExpectedWords into verse-shaped audio (one
 harmonic burst per syllable, gaps between words, stressed syllables +12 % pitch) and returns the
 ground-truth boundaries; `engine.test.ts` wraps it in a real `audio/wav` Blob (`audio/wav.ts`) and
-runs the whole engine: clean reading → 7/7 correct with boundaries within 60 ms; omitted word →
+runs the whole engine: clean reading → 7/7 correct with boundaries within 60 ms; **boundary
+suite**: clean / connected speech with a noise floor (no gaps inside words, 60 ms between words) /
+fast (90 ms syllables) / slow (280 ms) / quiet readings → every boundary within 50 ms, every
+segment contains all of its own nucleus peaks and none of a neighbour's, no overlaps; tempo
+scaling and noise-floor tests; omitted word →
 missing, neighbours intact; swallowed syllable → minor 3/4; stretched word → minor "ארוכה מהצפוי";
 extra hesitation → tolerated; faster tempo → tolerated; silence → all missing; baseline Δ;
 remote contract + error handling. Real phone recordings are still missing as fixtures — add a

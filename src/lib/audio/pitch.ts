@@ -49,7 +49,10 @@ export interface PitchFrame {
   t: number;
   /** Hz, or null when unvoiced / silent. */
   f0: number | null;
+  /** RMS over the whole analysis window (frameMs). */
   rms: number;
+  /** RMS over the central 20 ms only — sharp enough to separate short syllables. */
+  rmsShort: number;
   clarity: number;
 }
 
@@ -198,8 +201,10 @@ export function estimatePitchTrack(samples: Float32Array, sampleRate: number, op
   const tauMax = Math.min(frameLen - 2, Math.ceil(sr / o.fMin));
   if (x.length < frameLen) return [];
 
-  // pass 1: frames + RMS (for the relative gate)
-  const frames: { start: number; rms: number; data: Float32Array }[] = [];
+  // pass 1: frames + RMS (for the relative gate) + short-window RMS (energy envelope)
+  const frames: { start: number; rms: number; rmsShort: number; data: Float32Array }[] = [];
+  const shortLen = Math.round(0.02 * sr);
+  const shortOff = Math.max(0, Math.floor((frameLen - shortLen) / 2));
   let maxRms = 0;
   for (let start = 0; start + frameLen <= x.length; start += hop) {
     const data = new Float32Array(frameLen);
@@ -209,23 +214,23 @@ export function estimatePitchTrack(samples: Float32Array, sampleRate: number, op
     for (let i = 0; i < frameLen; i++) data[i] = x[start + i] - mean;
     const rms = rmsOf(data);
     if (rms > maxRms) maxRms = rms;
-    frames.push({ start, rms, data });
+    frames.push({ start, rms, rmsShort: rmsOf(data.subarray(shortOff, shortOff + shortLen)), data });
   }
   const gate = Math.max(o.rmsFloor, maxRms * o.rmsGate);
 
   // pass 2: NSDF per frame
-  const track: PitchFrame[] = frames.map(({ start, rms, data }) => {
+  const track: PitchFrame[] = frames.map(({ start, rms, rmsShort, data }) => {
     const t = (start + frameLen / 2) / sr;
-    if (rms < gate) return { t, f0: null, rms, clarity: 0 };
+    if (rms < gate) return { t, f0: null, rms, rmsShort, clarity: 0 };
     const d = nsdf(data, tauMin, tauMax);
     const peaks = keyMaxima(d, tauMin, tauMax);
-    if (!peaks.length) return { t, f0: null, rms, clarity: 0 };
+    if (!peaks.length) return { t, f0: null, rms, rmsShort, clarity: 0 };
     let globalMax = 0;
     for (const [, v] of peaks) if (v > globalMax) globalMax = v;
     const chosen = peaks.find(([, v]) => v >= o.peakThreshold * globalMax) ?? peaks[0];
     const [tau, clarity] = parabolic(d, chosen[0]);
-    if (clarity < o.clarityThreshold || tau <= 0) return { t, f0: null, rms, clarity };
-    return { t, f0: sr / tau, rms, clarity };
+    if (clarity < o.clarityThreshold || tau <= 0) return { t, f0: null, rms, rmsShort, clarity };
+    return { t, f0: sr / tau, rms, rmsShort, clarity };
   });
 
   // pass 3: median filter over voiced frames only
