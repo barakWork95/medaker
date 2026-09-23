@@ -330,11 +330,12 @@ export class RemoteEngine implements PronunciationEngine {
   readonly id = "remote" as const;
   readonly capabilities = { phonetic: true, timestamps: true };
   private readonly baseUrl: string;
-  constructor(
-    baseUrl: string,
-    private readonly fetchImpl: typeof fetch = fetch,
-  ) {
+  private readonly fetchImpl: typeof fetch;
+  constructor(baseUrl: string, fetchImpl?: typeof fetch) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
+    // Browsers require fetch to be called with the global as `this`; a bare method reference
+    // stored on the instance throws "Illegal invocation". Wrap the default.
+    this.fetchImpl = fetchImpl ?? ((input, init) => globalThis.fetch(input, init));
   }
 
   async evaluate(request: EvaluationRequest): Promise<VerseEvaluation> {

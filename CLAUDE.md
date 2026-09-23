@@ -109,6 +109,7 @@ scripts/
   import-taamim.mjs      xlsx → taamim.generated.json (continuation rows, Hebrew rule text → ids)
   lib/xlsx-lite.mjs      dependency-free zip + sheet reader used by the importer
   verify-verses.mjs      fetch Sefaria (and optionally UXLC) and diff against verses.json
+  export-expected.ts     print the /api/align `expected` array for a verse (fixtures for the aligner server)
 public/
   logo.svg (fill=currentColor)  logo-gold.svg (fill=#D4AF37)   — traced from Medaker-logo.svg
 ```
@@ -680,3 +681,23 @@ pitch invariance; magnitude penalty; unvoiced; no-template. `engine.test.ts`: sy
 `pitch: "accent" | "flat" | "inverted"` end-to-end (good ≥ 70, flat/inverted lower, conjunctives
 untouched), region/contour exposure, the `/api/align` contract with a fake aligner (boundaries
 adopted, phones, phonetic → minor, omitted → missing), version/shape rejection, fallback.
+
+## 17. Phase 4 — the alignment server (`../medaker-aligner`, separate repo)
+
+A FastAPI service implementing `POST /api/align` (contract v1) on **torchaudio's MMS forced
+aligner** (`torchaudio.pipelines.MMS_FA`, torch/torchaudio pinned to 2.5.1). It receives the
+Temani expectations this app builds (`export-expected.ts` produces the same array for fixtures),
+renders the IPA as the model's Latin letters (ו→w, ק→g, גּ→j, ג→gh, ת→th, ד→dh, כ→kh, ע/א→',
+קמץ→o, סגול→a), runs CTC forced alignment over the whole verse and returns word / syllable /
+phone spans with posteriors, plus Hebrew `issues` from acoustic contrast checks (W/V, G/K, TH/T,
+DH/D, GH/G, KH/K, J/G). See that repo's README for setup, Docker and the omission rule.
+
+Local loop (verified 2026-09-23 with Chrome webm/opus → ffmpeg → MMS → this UI, ≈ 1 s):
+`cd ../medaker-aligner && source .venv/bin/activate && python main.py`, then in the app console
+`localStorage.setItem('medaker.alignmentApi', 'http://localhost:8000')`. The frontend shows
+**מנוע שרת** and per-word **התאמה פונטית**; on any server failure `FallbackEngine` answers locally
+and shows the reason.
+
+Gotcha fixed in this phase: `RemoteEngine` must call `globalThis.fetch(...)` through a wrapper —
+storing `fetch` as an instance field and calling it as a method throws "Illegal invocation" in
+browsers (Node tests never see it).
