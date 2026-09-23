@@ -698,6 +698,16 @@ Local loop (verified 2026-09-23 with Chrome webm/opus → ffmpeg → MMS → thi
 **מנוע שרת** and per-word **התאמה פונטית**; on any server failure `FallbackEngine` answers locally
 and shows the reason.
 
+**Configuring the server URL.** `NEXT_PUBLIC_ALIGNMENT_API_URL` (canonical; the older
+`NEXT_PUBLIC_ALIGNMENT_API` still works) is inlined at build time — this is Next.js, a `VITE_*`
+variable would never reach the browser. The Pages workflow passes the repository variable
+`ALIGNMENT_API_URL` (Settings → Secrets and variables → Actions → Variables) into it, so the
+deployed app uses the Render/HTTPS server with no per-device step. Resolution order
+(`resolveRemoteApi()`): `localStorage["medaker.alignmentApi"]` (device override) → env → none.
+The Settings sheet shows the effective URL, its source and a live `/health` ping.
+`.env.example` documents the variables. Fixtures for the server: `../medaker-aligner/app/fixtures/`
+(drop-in pipeline, see that README).
+
 Gotcha fixed in this phase: `RemoteEngine` must call `globalThis.fetch(...)` through a wrapper —
 storing `fetch` as an instance field and calling it as a method throws "Illegal invocation" in
 browsers (Node tests never see it).

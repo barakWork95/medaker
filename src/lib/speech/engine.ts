@@ -303,14 +303,29 @@ export class LocalRhythmEngine implements PronunciationEngine {
 
 export const REMOTE_API_STORAGE_KEY = "medaker.alignmentApi";
 
-export function getRemoteApiUrl(): string | null {
-  const fromEnv = process.env.NEXT_PUBLIC_ALIGNMENT_API;
+/**
+ * Build-time server URL. Next.js inlines NEXT_PUBLIC_* at build time (a VITE_* variable would
+ * never reach the browser). `NEXT_PUBLIC_ALIGNMENT_API_URL` is canonical; the older
+ * `NEXT_PUBLIC_ALIGNMENT_API` still works. Both must be referenced literally for inlining.
+ */
+export const ALIGNMENT_API_ENV_URL: string | null =
+  (process.env.NEXT_PUBLIC_ALIGNMENT_API_URL || process.env.NEXT_PUBLIC_ALIGNMENT_API || "").replace(/\/+$/, "") || null;
+
+export type RemoteApiSource = "storage" | "env" | null;
+
+/** Effective server URL and where it came from: a per-device override beats the build-time value. */
+export function resolveRemoteApi(): { url: string | null; source: RemoteApiSource } {
   try {
-    const fromStorage = globalThis.localStorage?.getItem(REMOTE_API_STORAGE_KEY);
-    return (fromStorage || fromEnv || "").replace(/\/$/, "") || null;
+    const fromStorage = (globalThis.localStorage?.getItem(REMOTE_API_STORAGE_KEY) || "").replace(/\/+$/, "");
+    if (fromStorage) return { url: fromStorage, source: "storage" };
   } catch {
-    return fromEnv?.replace(/\/$/, "") || null;
+    /* storage unavailable */
   }
+  return ALIGNMENT_API_ENV_URL ? { url: ALIGNMENT_API_ENV_URL, source: "env" } : { url: null, source: null };
+}
+
+export function getRemoteApiUrl(): string | null {
+  return resolveRemoteApi().url;
 }
 
 async function blobToBase64(blob: Blob): Promise<string> {

@@ -1,13 +1,36 @@
 "use client";
 
 /** Header gear → settings sheet: voice calibration status + actions. */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatHz, formatSemitones, saveVoiceProfile, useVoiceProfile } from "@/lib/audio/voice-profile";
+import { resolveRemoteApi, type RemoteApiSource } from "@/lib/speech/engine";
 import { BottomSheet } from "./BottomSheet";
+
+type Health = "unknown" | "checking" | "ok" | "down";
 
 export function SettingsMenu({ onCalibrate }: { onCalibrate: () => void }) {
   const [open, setOpen] = useState(false);
   const profile = useVoiceProfile();
+  const [server, setServer] = useState<{ url: string | null; source: RemoteApiSource }>({ url: null, source: null });
+  const [health, setHealth] = useState<Health>("unknown");
+
+  // Resolve on open (localStorage is client-only) and ping /health.
+  useEffect(() => {
+    if (!open) return;
+    const resolved = resolveRemoteApi();
+    const controller = new AbortController();
+    // setState inside async callbacks only (React Compiler lint rule)
+    Promise.resolve().then(() => setServer(resolved));
+    if (resolved.url) {
+      Promise.resolve().then(() => setHealth("checking"));
+      fetch(`${resolved.url}/health`, { signal: controller.signal })
+        .then((r) => setHealth(r.ok ? "ok" : "down"))
+        .catch(() => setHealth("down"));
+    } else {
+      Promise.resolve().then(() => setHealth("unknown"));
+    }
+    return () => controller.abort();
+  }, [open]);
 
   return (
     <>
@@ -59,7 +82,23 @@ export function SettingsMenu({ onCalibrate }: { onCalibrate: () => void }) {
             )}
           </div>
         </section>
-        <p className="mt-3 text-[11px] text-parchment/40">ההקלטות והפרופיל הקולי נשמרים במכשיר זה בלבד ואינם נשלחים לשום שרת.</p>
+        <section className="mt-3 rounded-lg border border-navy-700 p-3" data-testid="settings-server">
+          <h3 className="font-semibold text-gold">מנוע יישור (שרת)</h3>
+          {server.url ? (
+            <p className="mt-1 text-sm text-parchment/80" dir="ltr">
+              <span className="font-mono text-xs">{server.url}</span>
+              <span dir="rtl" className="ms-2 text-xs text-parchment/60">
+                ({server.source === "storage" ? "הגדרה במכשיר" : "הגדרת בנייה"}) ·{" "}
+                {health === "checking" ? "בודק…" : health === "ok" ? "מחובר ✓" : health === "down" ? "לא זמין — ייעשה שימוש במנוע המקומי" : ""}
+              </span>
+            </p>
+          ) : (
+            <p className="mt-1 text-sm text-parchment/60">לא הוגדר שרת — הניתוח מתבצע במכשיר (קצב, הברות וניגון; ללא בדיקת הגייה).</p>
+          )}
+        </section>
+        <p className="mt-3 text-[11px] text-parchment/40">
+          {server.url ? "הקלטות נשלחות לשרת היישור לצורך הניתוח בלבד; הפרופיל הקולי נשמר במכשיר." : "ההקלטות והפרופיל הקולי נשמרים במכשיר זה בלבד ואינם נשלחים לשום שרת."}
+        </p>
       </BottomSheet>
     </>
   );
