@@ -3,7 +3,7 @@ import { encodeWav } from "@/lib/audio/wav";
 import { estimatePitchTrack } from "@/lib/audio/pitch";
 import { computeVoiceProfile } from "@/lib/audio/voice-profile";
 import { alignSyllables } from "./align";
-import { FallbackEngine, LocalRhythmEngine, RemoteEngine, evaluateLocally, getRemoteApiUrl, statusFor, type EvaluationRequest, type VerseEvaluation } from "./engine";
+import { FallbackEngine, LocalRhythmEngine, RemoteEngine, evaluateLocally, getEngine, getRemoteApiUrl, resolveRemoteApi, statusFor, type EvaluationRequest, type VerseEvaluation } from "./engine";
 import type { AlignRequest, AlignResponse } from "./api-contract";
 import { buildExpectedWords } from "./expected";
 import { analyzeNuclei, detectNuclei } from "./nuclei";
@@ -215,8 +215,24 @@ describe("RemoteEngine — /api/align contract", () => {
     expect(result.summary.correct).toBe(7);
   });
 
-  it("is only selected when a URL is configured", () => {
-    expect(getRemoteApiUrl()).toBeNull();
+  it("targets the live Cloud Run service by default, honours overrides and the off switch", () => {
+    expect(getRemoteApiUrl()).toBe("https://medaker-aligner-363966365041.europe-west1.run.app");
+    expect(resolveRemoteApi()).toEqual({ url: "https://medaker-aligner-363966365041.europe-west1.run.app", source: "default" });
+    expect(getEngine()).toBeInstanceOf(FallbackEngine);
+    const store = new Map<string, string>();
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v), removeItem: (k: string) => store.delete(k) },
+    });
+    try {
+      store.set("medaker.alignmentApi", "http://localhost:8000/");
+      expect(resolveRemoteApi()).toEqual({ url: "http://localhost:8000", source: "storage" });
+      store.set("medaker.alignmentApi", "none");
+      expect(resolveRemoteApi()).toEqual({ url: null, source: "storage" });
+      expect(getEngine()).toBeInstanceOf(LocalRhythmEngine);
+    } finally {
+      delete (globalThis as { localStorage?: unknown }).localStorage;
+    }
   });
 });
 

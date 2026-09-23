@@ -43,14 +43,18 @@ jobs:
           repo="${{ github.event.repository.name }}"
           if [[ "$repo" == *.github.io ]]; then echo "path=" >> "$GITHUB_OUTPUT"; else echo "path=/$repo" >> "$GITHUB_OUTPUT"; fi
 
-      # Alignment server (Phase 4): set the repository variable ALIGNMENT_API_URL
-      # (Settings → Secrets and variables → Actions → Variables) to e.g. https://medaker-aligner.onrender.com
-      # and the deployed app uses the remote engine with no per-device setup.
+      # Alignment server: the code defaults to the live Cloud Run service
+      # (DEFAULT_ALIGNMENT_API_URL in src/lib/speech/engine.ts). The repository variable
+      # ALIGNMENT_API_URL (Settings → Secrets and variables → Actions → Variables) overrides it
+      # for the deployed app; it is only exported when set so an empty variable cannot blank it.
+      - name: Alignment server override
+        if: vars.ALIGNMENT_API_URL != ''
+        run: echo "NEXT_PUBLIC_ALIGNMENT_API_URL=${{ vars.ALIGNMENT_API_URL }}" >> "$GITHUB_ENV"
+
       - name: Build static export
         run: npm run build
         env:
           NEXT_PUBLIC_BASE_PATH: ${{ steps.base.outputs.path }}
-          NEXT_PUBLIC_ALIGNMENT_API_URL: ${{ vars.ALIGNMENT_API_URL }}
           NEXT_TELEMETRY_DISABLED: "1"
 
       - uses: actions/configure-pages@v5

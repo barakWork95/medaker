@@ -304,24 +304,42 @@ export class LocalRhythmEngine implements PronunciationEngine {
 export const REMOTE_API_STORAGE_KEY = "medaker.alignmentApi";
 
 /**
- * Build-time server URL. Next.js inlines NEXT_PUBLIC_* at build time (a VITE_* variable would
+ * The production alignment server (medaker-aligner on Google Cloud Run, europe-west1).
+ * Used whenever nothing more specific is configured, so the deployed app, `npm run dev` and
+ * previews all talk to the live service out of the box.
+ */
+export const DEFAULT_ALIGNMENT_API_URL = "https://medaker-aligner-363966365041.europe-west1.run.app";
+
+/** Set the env var or the localStorage key to this to force the local (in-browser) engine. */
+export const ALIGNMENT_API_OFF = "none";
+
+/**
+ * Build-time override. Next.js inlines NEXT_PUBLIC_* at build time (a VITE_* variable would
  * never reach the browser). `NEXT_PUBLIC_ALIGNMENT_API_URL` is canonical; the older
  * `NEXT_PUBLIC_ALIGNMENT_API` still works. Both must be referenced literally for inlining.
  */
 export const ALIGNMENT_API_ENV_URL: string | null =
-  (process.env.NEXT_PUBLIC_ALIGNMENT_API_URL || process.env.NEXT_PUBLIC_ALIGNMENT_API || "").replace(/\/+$/, "") || null;
+  (process.env.NEXT_PUBLIC_ALIGNMENT_API_URL || process.env.NEXT_PUBLIC_ALIGNMENT_API || "").trim().replace(/\/+$/, "") || null;
 
-export type RemoteApiSource = "storage" | "env" | null;
+export type RemoteApiSource = "storage" | "env" | "default" | null;
 
-/** Effective server URL and where it came from: a per-device override beats the build-time value. */
+/**
+ * Effective server URL and where it came from. Precedence:
+ *   localStorage["medaker.alignmentApi"] (per-device override, or "none" to disable)
+ *   → NEXT_PUBLIC_ALIGNMENT_API_URL (build-time, or "none" to disable)
+ *   → DEFAULT_ALIGNMENT_API_URL (the live Cloud Run service)
+ */
 export function resolveRemoteApi(): { url: string | null; source: RemoteApiSource } {
   try {
-    const fromStorage = (globalThis.localStorage?.getItem(REMOTE_API_STORAGE_KEY) || "").replace(/\/+$/, "");
+    const fromStorage = (globalThis.localStorage?.getItem(REMOTE_API_STORAGE_KEY) || "").trim().replace(/\/+$/, "");
+    if (fromStorage === ALIGNMENT_API_OFF) return { url: null, source: "storage" };
     if (fromStorage) return { url: fromStorage, source: "storage" };
   } catch {
     /* storage unavailable */
   }
-  return ALIGNMENT_API_ENV_URL ? { url: ALIGNMENT_API_ENV_URL, source: "env" } : { url: null, source: null };
+  if (ALIGNMENT_API_ENV_URL === ALIGNMENT_API_OFF) return { url: null, source: "env" };
+  if (ALIGNMENT_API_ENV_URL) return { url: ALIGNMENT_API_ENV_URL, source: "env" };
+  return { url: DEFAULT_ALIGNMENT_API_URL, source: "default" };
 }
 
 export function getRemoteApiUrl(): string | null {

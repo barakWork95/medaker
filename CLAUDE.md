@@ -698,12 +698,17 @@ Local loop (verified 2026-09-23 with Chrome webm/opus → ffmpeg → MMS → thi
 **מנוע שרת** and per-word **התאמה פונטית**; on any server failure `FallbackEngine` answers locally
 and shows the reason.
 
+**Production server (2026-09-23):** `https://medaker-aligner-363966365041.europe-west1.run.app`
+(Google Cloud Run, europe-west1, 4 GiB, float32 variant). It is the code default
+(`DEFAULT_ALIGNMENT_API_URL` in `engine.ts`), so every build and `npm run dev` use it without any
+setup; CORS on the server allows `https://barakwork95.github.io` and localhost dev ports.
+Precedence in `resolveRemoteApi()`: `localStorage["medaker.alignmentApi"]` → build-time env →
+default; the literal value `none` in either place forces the in-browser engine.
+
 **Configuring the server URL.** `NEXT_PUBLIC_ALIGNMENT_API_URL` (canonical; the older
 `NEXT_PUBLIC_ALIGNMENT_API` still works) is inlined at build time — this is Next.js, a `VITE_*`
 variable would never reach the browser. The Pages workflow passes the repository variable
-`ALIGNMENT_API_URL` (Settings → Secrets and variables → Actions → Variables) into it, so the
-deployed app uses the Render/HTTPS server with no per-device step. Resolution order
-(`resolveRemoteApi()`): `localStorage["medaker.alignmentApi"]` (device override) → env → none.
+`ALIGNMENT_API_URL` (Settings → Secrets and variables → Actions → Variables) into it (only when the variable is non-empty), overriding the default for the deployed app.
 The Settings sheet shows the effective URL, its source and a live `/health` ping.
 `.env.example` documents the variables. Fixtures for the server: `../medaker-aligner/app/fixtures/`
 (drop-in pipeline, see that README).

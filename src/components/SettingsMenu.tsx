@@ -88,12 +88,12 @@ export function SettingsMenu({ onCalibrate }: { onCalibrate: () => void }) {
             <p className="mt-1 text-sm text-parchment/80" dir="ltr">
               <span className="font-mono text-xs">{server.url}</span>
               <span dir="rtl" className="ms-2 text-xs text-parchment/60">
-                ({server.source === "storage" ? "הגדרה במכשיר" : "הגדרת בנייה"}) ·{" "}
+                ({server.source === "storage" ? "הגדרה במכשיר" : server.source === "env" ? "הגדרת בנייה" : "שרת ברירת המחדל"}) ·{" "}
                 {health === "checking" ? "בודק…" : health === "ok" ? "מחובר ✓" : health === "down" ? "לא זמין — ייעשה שימוש במנוע המקומי" : ""}
               </span>
             </p>
           ) : (
-            <p className="mt-1 text-sm text-parchment/60">לא הוגדר שרת — הניתוח מתבצע במכשיר (קצב, הברות וניגון; ללא בדיקת הגייה).</p>
+            <p className="mt-1 text-sm text-parchment/60">השרת כובה בהגדרות — הניתוח מתבצע במכשיר (קצב, הברות וניגון; ללא בדיקת הגייה).</p>
           )}
         </section>
         <p className="mt-3 text-[11px] text-parchment/40">
